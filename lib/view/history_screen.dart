@@ -307,16 +307,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(8),
                                     child: Image.network(
-                                      firstImage.startsWith('http')
-                                          ? firstImage
-                                          : '${widget.apiBaseUrl}$firstImage',
-                                      width: 55,
-                                      height: 55,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => const Icon(
-                                          Icons.broken_image,
-                                          color: Colors.grey),
-                                    ),
+                                        firstImage.startsWith('http')
+                                            ? firstImage
+                                            : '${widget.apiBaseUrl}$firstImage',
+                                        width: 55,
+                                        height: 55,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) =>
+                                            const Icon(Icons.broken_image,
+                                                color: Colors.grey)),
                                   )
                                 : const Icon(Icons.image_not_supported,
                                     size: 45, color: Colors.grey),
