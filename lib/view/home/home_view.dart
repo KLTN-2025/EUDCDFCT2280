@@ -14,6 +14,7 @@ import 'package:font_change_md/view/accountprofile.dart';
 import 'package:font_change_md/view/ai_choose.dart';
 // ignore: unused_import
 import 'package:font_change_md/view/checking_internet.dart';
+// ignore: unused_import
 import 'package:font_change_md/view/history_screen.dart';
 // ignore: unused_import
 import 'package:font_change_md/view/internet_provider.dart';
@@ -393,7 +394,7 @@ class _EcoFontConverterScreenState extends State<EcoFontConverterScreen> {
       bottomNavigationBar: CurvedNavigationBar(
         backgroundColor: bgColor,
         items: _navigationItem(context),
-        index: 3, // Set the current index
+        index: 2, // Set the current index
         animationDuration: const Duration(milliseconds: 300),
         onTap: (index) async {
           if (index == 0) {
@@ -426,20 +427,20 @@ class _EcoFontConverterScreenState extends State<EcoFontConverterScreen> {
               context,
               MaterialPageRoute(builder: (context) => const AIChoose()),
             );
+            // } else if (index == 3) {
+            //   showLoadingDialog(context); // Show Loading Dialog
+            //   await Future.delayed(const Duration(seconds: 2)); // Simulate a task
+            //   // ignore: use_build_context_synchronously
+            //   Navigator.pop(context); // Close the loading dialog
+            //   Navigator.push(
+            //     // ignore: use_build_context_synchronously
+            //     context,
+            //     MaterialPageRoute(
+            //       builder: (context) =>
+            //           const HistoryScreen(userId: '', apiBaseUrl: ''),
+            //     ),
+            //   );
           } else if (index == 3) {
-            showLoadingDialog(context); // Show Loading Dialog
-            await Future.delayed(const Duration(seconds: 2)); // Simulate a task
-            // ignore: use_build_context_synchronously
-            Navigator.pop(context); // Close the loading dialog
-            Navigator.push(
-              // ignore: use_build_context_synchronously
-              context,
-              MaterialPageRoute(
-                builder: (context) =>
-                    const HistoryScreen(userId: '', apiBaseUrl: ''),
-              ),
-            );
-          } else if (index == 4) {
             showLoadingDialog(context); // Show Loading Dialog
             await Future.delayed(const Duration(seconds: 2)); // Simulate a task
             // ignore: use_build_context_synchronously
@@ -449,7 +450,7 @@ class _EcoFontConverterScreenState extends State<EcoFontConverterScreen> {
               context,
               MaterialPageRoute(builder: (context) => const SettingsScreen()),
             );
-          } else if (index == 5) {
+          } else if (index == 4) {
             showLoadingDialog(context); // Show Loading Dialog
             await Future.delayed(const Duration(seconds: 2)); // Simulate a task
             // ignore: use_build_context_synchronously

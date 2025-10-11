@@ -25,8 +25,15 @@ import re
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 
 
-cred_path = "/etc/secrets/firebase-key.json"
+# cred_path = "/etc/secrets/firebase-key.json"
+# db = firestore.Client.from_service_account_json(cred_path)
+# 🔹 Xác định đường dẫn chính xác đến file JSON trong thư mục backend
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+cred_path = os.path.join(BASE_DIR, "secrets/firebase-key.json")
+
+# 🔹 Kết nối Firestore
 db = firestore.Client.from_service_account_json(cred_path)
+print("✅ Firestore connected successfully.")
 
 # --- Load .env --- 
 load_dotenv() 
@@ -373,6 +380,20 @@ print("📂 Danh sách trong assets/fonts:", os.listdir(FONT_DIR) if os.path.exi
 
 DEFAULT_FONT = "Arial"
 
+def ensure_font_available(font_name: str) -> str:
+    """
+    Kiểm tra font có tồn tại không, nếu có trả về đường dẫn,
+    nếu không có thì fallback sang font mặc định hoặc UnicodeCIDFont.
+    """
+    font_path = CUSTOM_FONTS.get(font_name)
+    if font_path and os.path.exists(font_path):
+        pdfmetrics.registerFont(TTFont(font_name, font_path))
+        return font_path
+    else:
+        print(f"⚠️ Font '{font_name}' không tồn tại, dùng fallback HeiseiMin-W3")
+        pdfmetrics.registerFont(UnicodeCIDFont("HeiseiMin-W3"))
+        return "HeiseiMin-W3"
+
 @app.post("/convert-to-image")
 async def convert_to_image(file: UploadFile = File(...), image_type: str = Form("PNG"), user_id: str = Form("anonymous_user"),
     user_email: str = Form(None)):
@@ -500,17 +521,29 @@ async def convert_to_image(file: UploadFile = File(...), image_type: str = Form(
     
     
 
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+    # except Exception as e:
+    #     return JSONResponse({"error": str(e)}, status_code=500)
 
+    # finally:
+    #     # Xoá file tạm
+    #     try:
+    #         if os.path.exists(temp_path):
+    #             os.remove(temp_path)
+    #         for f in output_files:
+    #             if os.path.exists(f):
+    #                 os.remove(f)
+    #     except:
+    #         pass
+    except Exception as e:
+        import traceback
+        print("🔥 Lỗi /convert-to-image:", traceback.format_exc())
+        return JSONResponse({"error": str(e)}, status_code=500)
     finally:
-        # Xoá file tạm
         try:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-            for f in output_files:
-                if os.path.exists(f):
-                    os.remove(f)
+            os.remove(temp_path)
+            for path in output_files:
+                if os.path.exists(path):
+                    os.remove(path)
         except:
             pass
 
