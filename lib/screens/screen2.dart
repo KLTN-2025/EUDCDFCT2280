@@ -1,0 +1,43 @@
+import 'package:flutter/material.dart';
+import 'package:font_change_md/localization/locales.dart';
+import 'package:font_change_md/localization/translator.dart';
+
+class Screen2 extends StatelessWidget {
+  const Screen2({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Image.asset("assets/images/img2.png"),
+        // ignore: prefer_const_constructors
+        SizedBox(
+          height: 20,
+        ),
+        Text(
+          tr(LocaleData.title2),
+          // ignore: prefer_const_constructors
+          style: TextStyle(
+              color: Colors.black, fontSize: 20, fontWeight: FontWeight.w400),
+        ),
+        // ignore: prefer_const_constructors
+        SizedBox(
+          height: 10,
+        ),
+        Container(
+          // ignore: prefer_const_constructors
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            tr(LocaleData.body2),
+            style: TextStyle(
+                color: Colors.black.withOpacity(0.6),
+                fontSize: 10,
+                fontWeight: FontWeight.w300),
+            textAlign: TextAlign.center,
+          ),
+        )
+      ],
+    );
+  }
+}
