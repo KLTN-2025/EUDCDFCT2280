@@ -1,4 +1,4 @@
-import 'dart:convert';
+// import 'dart:convert';
 
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -23,7 +23,7 @@ import 'package:font_change_md/view/settings_screen.dart';
 // import 'package:font_change_md/view/theme_provider.dart';
 // ignore: unused_import
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+// import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vibration/vibration.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
@@ -53,7 +53,6 @@ class _EcoFontConverterScreenState extends State<EcoFontConverterScreen> {
         Icon(Icons.account_circle, color: Theme.of(context).iconTheme.color),
         Icon(Icons.info, color: Theme.of(context).iconTheme.color),
         Icon(Icons.rocket, color: Theme.of(context).iconTheme.color),
-        Icon(Icons.history, color: Theme.of(context).iconTheme.color),
         Icon(Icons.settings, color: Theme.of(context).iconTheme.color),
         Icon(Icons.logout, color: Theme.of(context).iconTheme.color),
       ];
@@ -71,15 +70,15 @@ class _EcoFontConverterScreenState extends State<EcoFontConverterScreen> {
   // ignore: prefer_final_fields
   TextEditingController _textController = TextEditingController();
   String _convertedText = "";
-  List<String> _historyList = [];
+  // List<String> _historyList = [];
 
   @override
   void initState() {
     super.initState();
-    _loadHistory(); //Load history when the screen is opened
+    // _loadHistory(); //Load history when the screen is opened
     _textController.addListener(() {
       setState(() {
-        _convertedText = _applyEcoFont(_textController.text);
+        // _convertedText = _applyEcoFont(_textController.text);
         // _fontColor = getContrastingTextColor(bgColor);
       });
     });
@@ -93,7 +92,7 @@ class _EcoFontConverterScreenState extends State<EcoFontConverterScreen> {
       await Future.delayed(const Duration(seconds: 2)); // Simulate a task
       // ignore: use_build_context_synchronously
       Navigator.pop(context);
-      await _saveHistory(); // Save history when the text is reset
+      // await _saveHistory(); // Save history when the text is reset
     });
     _triggerVibration("reset");
   }
@@ -107,8 +106,8 @@ class _EcoFontConverterScreenState extends State<EcoFontConverterScreen> {
         SnackBar(content: Text("Copied to clipboard!")),
       );
 
-      // ✅ Save to history
-      await _addToHistory(_convertedText, _selectedFont);
+      // // ✅ Save to history
+      // await _addToHistory(_convertedText, _selectedFont);
     }
   }
 
@@ -160,31 +159,31 @@ class _EcoFontConverterScreenState extends State<EcoFontConverterScreen> {
     );
   }
 
-  Future<void> _addToHistory(String text, String font) async {
-    final prefs = await SharedPreferences.getInstance();
-    List<String> history = prefs.getStringList('history') ?? [];
+  // Future<void> _addToHistory(String text, String font) async {
+  //   final prefs = await SharedPreferences.getInstance();
+  //   List<String> history = prefs.getStringList('history') ?? [];
 
-    // Save text and font together in JSON format
-    history.add(jsonEncode({'text': text, 'font': font}));
+  //   // Save text and font together in JSON format
+  //   history.add(jsonEncode({'text': text, 'font': font}));
 
-    await prefs.setStringList('history', history);
-  }
+  //   await prefs.setStringList('history', history);
+  // }
 
-  Future<void> _saveHistory() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList("history", _historyList);
-    // ignore: avoid_print
-    print("History saved: $_historyList"); // Debugging output
-  }
+  // Future<void> _saveHistory() async {
+  //   SharedPreferences prefs = await SharedPreferences.getInstance();
+  //   await prefs.setStringList("history", _historyList);
+  //   // ignore: avoid_print
+  //   print("History saved: $_historyList"); // Debugging output
+  // }
 
-  Future<void> _loadHistory() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _historyList = prefs.getStringList("history") ?? [];
-    });
-    // ignore: avoid_print
-    print("History loaded: $_historyList"); // Debugging output
-  }
+  // Future<void> _loadHistory() async {
+  //   SharedPreferences prefs = await SharedPreferences.getInstance();
+  //   setState(() {
+  //     _historyList = prefs.getStringList("history") ?? [];
+  //   });
+  //   // ignore: avoid_print
+  //   print("History loaded: $_historyList"); // Debugging output
+  // }
 
   void _triggerVibration(String action) async {
     if (await Vibration.hasVibrator()) {
@@ -199,46 +198,41 @@ class _EcoFontConverterScreenState extends State<EcoFontConverterScreen> {
     }
   }
 
-  String _applyEcoFont(String text) {
-    String converted =
-        text.replaceAll("o", "◎").replaceAll("e", "℮").replaceAll("a", "a");
+  // String _applyEcoFont(String text) {
+  //   String converted =
+  //       text.replaceAll("o", "◎").replaceAll("e", "℮").replaceAll("a", "a");
 
-    // ignore: avoid_print
-    print("Converted Text: $converted"); // Debugging output
+  //   // ignore: avoid_print
+  //   print("Converted Text: $converted"); // Debugging output
 
-    if (converted.isNotEmpty && !_historyList.contains(converted)) {
-      setState(() {
-        _historyList.insert(0, converted);
-        _saveHistory(); // Save history when a new conversion happens
-      });
-    }
+  //   if (converted.isNotEmpty && !_historyList.contains(converted)) {
+  //     setState(() {
+  //       _historyList.insert(0, converted);
+  //       _saveHistory(); // Save history when a new conversion happens
+  //     });
+  //   }
 
-    return converted;
-  }
+  //   return converted;
+  // }
 
   @override
   Widget build(BuildContext context) {
     // ignore: no_leading_underscores_for_local_identifiers
     // List<String> _historyList = [];
     // return Consumer<InternetProvider>(
-    // builder: (context, internetProvider, child) {
-    // if (!internetProvider.isConnected) {
-    //   //Future.microtask
-    //   WidgetsBinding.instance.addPostFrameCallback((_) {
-    //     Navigator.push(
-    //       context,
-    //       MaterialPageRoute(builder: (context) => CheckingInternet()),
-    //     );
-    //   });
-    // }
+    //     builder: (context, internetProvider, child) {
+    //   if (!internetProvider.isConnected) {
+    //     //Future.microtask
+    //     WidgetsBinding.instance.addPostFrameCallback((_) {
+    //       Navigator.push(
+    //         context,
+    //         MaterialPageRoute(builder: (context) => CheckingInternet()),
+    //       );
+    //     });
+    //   }
     return Scaffold(
       appBar: AppBar(
-        title:
-            //     Text(
-            //   tr(LocaleData.settings), // 👈 use helper
-            //   style: Theme.of(context).textTheme.bodyLarge,
-            // ),
-            Text(
+        title: Text(
           tr(LocaleData.app_name),
           style: Theme.of(context).textTheme.bodyLarge,
         ),
@@ -427,19 +421,6 @@ class _EcoFontConverterScreenState extends State<EcoFontConverterScreen> {
               context,
               MaterialPageRoute(builder: (context) => const AIChoose()),
             );
-            // } else if (index == 3) {
-            //   showLoadingDialog(context); // Show Loading Dialog
-            //   await Future.delayed(const Duration(seconds: 2)); // Simulate a task
-            //   // ignore: use_build_context_synchronously
-            //   Navigator.pop(context); // Close the loading dialog
-            //   Navigator.push(
-            //     // ignore: use_build_context_synchronously
-            //     context,
-            //     MaterialPageRoute(
-            //       builder: (context) =>
-            //           const HistoryScreen(userId: '', apiBaseUrl: ''),
-            //     ),
-            //   );
           } else if (index == 3) {
             showLoadingDialog(context); // Show Loading Dialog
             await Future.delayed(const Duration(seconds: 2)); // Simulate a task
@@ -463,6 +444,7 @@ class _EcoFontConverterScreenState extends State<EcoFontConverterScreen> {
     );
     // },
     // );
+    // });
   }
 
   Widget _buildActionButton(

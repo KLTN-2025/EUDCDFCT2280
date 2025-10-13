@@ -18,7 +18,7 @@ class AIChoose extends StatefulWidget {
 
 class _AIChooseState extends State<AIChoose> {
   double _fabX = 300; // Initial X position
-  double _fabY = 800; // Initial Y position
+  double _fabY = 600; // Initial Y position
 
   void showLoadingDialog(BuildContext context) {
     showDialog(

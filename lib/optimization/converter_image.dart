@@ -152,157 +152,179 @@ class _FileConverterImageScreenState extends State<FileConverterImageScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // appBar: AppBar(title: const Text('CHUYỂN ĐỔI FILE SANG IMAGE')),
-      appBar: AppBar(
-        title: const Text('CHUYỂN ĐỔI FILE SANG IMAGE'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.history),
-            tooltip: "Xem lịch sử chuyển đổi",
-            onPressed: () {
-              final user = FirebaseAuth.instance.currentUser;
-              if (user == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text("⚠️ Bạn cần đăng nhập để xem lịch sử!")),
-                );
-                return;
-              }
+    return WillPopScope(
+      onWillPop: () async {
+        if (_isLoading) {
+          // 🟢 Nếu đang chuyển đổi thì hiển thị cảnh báo
+          await showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text(
+                "Không thể thoát",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              content: const Text(
+                "Đang trong quá trình chuyển đổi. Vui lòng chờ hoàn tất trước khi quay lại.",
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text("OK", style: TextStyle(color: Colors.blue)),
+                ),
+              ],
+            ),
+          );
+          return false; // 🛑 Không cho phép back
+        }
+        return true; // ✅ Cho phép back khi không còn chuyển đổi
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('CHUYỂN ĐỔI FILE SANG IMAGE'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.history),
+              tooltip: "Xem lịch sử chuyển đổi",
+              onPressed: () {
+                final user = FirebaseAuth.instance.currentUser;
+                if (user == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text("⚠️ Bạn cần đăng nhập để xem lịch sử!")),
+                  );
+                  return;
+                }
 
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => HistoryScreen(
-                    userId: user.uid,
-                    apiBaseUrl: "https://ecolive-font-converter.onrender.com",
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => HistoryScreen(
+                      userId: user.uid,
+                      apiBaseUrl: "https://ecolive-font-converter.onrender.com",
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              GestureDetector(
+                onTap: _pickFileAndConvert,
+                child: Container(
+                  height: 150,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.cloud_upload,
+                          size: 50, color: Colors.grey),
+                      const SizedBox(height: 10),
+                      const Text('UPLOAD FILE',
+                          style: TextStyle(color: Colors.grey)),
+                      if (_uploadedFileName != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          "Đã chọn: $_uploadedFileName",
+                          style: const TextStyle(color: Colors.black54),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            GestureDetector(
-              onTap: _pickFileAndConvert,
-              child: Container(
-                height: 150,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.cloud_upload,
-                        size: 50, color: Colors.grey),
-                    const SizedBox(height: 10),
-                    const Text('UPLOAD FILE',
-                        style: TextStyle(color: Colors.grey)),
-                    if (_uploadedFileName != null) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        "Đã chọn: $_uploadedFileName",
-                        style: const TextStyle(color: Colors.black54),
-                      ),
-                    ],
-                  ],
-                ),
               ),
-            ),
-            const SizedBox(height: 30),
-
-            // Chọn loại ảnh
-            const Text('Loại ảnh', style: TextStyle(fontSize: 16)),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: _selectedImageType,
-              decoration: const InputDecoration(border: OutlineInputBorder()),
-              items: ['PNG', 'JPG', 'JPEG', 'WEBP'].map((v) {
-                return DropdownMenuItem<String>(
-                  value: v,
-                  child: Text(v),
-                );
-              }).toList(),
-              onChanged: (val) => setState(() => _selectedImageType = val!),
-            ),
-            const SizedBox(height: 30),
-
-            // Kết quả hiển thị ảnh
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _imageUrls.isNotEmpty
-                        ? ListView.builder(
-                            itemCount: _imageUrls.length,
-                            itemBuilder: (context, index) {
-                              final url = _imageUrls[index];
-                              return Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 8.0),
-                                child: Card(
-                                  elevation: 2,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      GestureDetector(
-                                        onTap: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  FullScreenImageViewer(
-                                                imageUrls: _imageUrls,
-                                                initialIndex: index,
+              const SizedBox(height: 30),
+              const Text('Loại ảnh', style: TextStyle(fontSize: 16)),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _selectedImageType,
+                decoration: const InputDecoration(border: OutlineInputBorder()),
+                items: ['PNG', 'JPG', 'JPEG', 'WEBP'].map((v) {
+                  return DropdownMenuItem<String>(
+                    value: v,
+                    child: Text(v),
+                  );
+                }).toList(),
+                onChanged: (val) => setState(() => _selectedImageType = val!),
+              ),
+              const SizedBox(height: 30),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _imageUrls.isNotEmpty
+                          ? ListView.builder(
+                              itemCount: _imageUrls.length,
+                              itemBuilder: (context, index) {
+                                final url = _imageUrls[index];
+                                return Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8.0),
+                                  child: Card(
+                                    elevation: 2,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        GestureDetector(
+                                          onTap: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    FullScreenImageViewer(
+                                                  imageUrls: _imageUrls,
+                                                  initialIndex: index,
+                                                ),
                                               ),
-                                            ),
-                                          );
-                                        },
-                                        child: Hero(
-                                          tag: url,
-                                          child: ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                            child: Image.network(
-                                              url,
-                                              fit: BoxFit.contain,
+                                            );
+                                          },
+                                          child: Hero(
+                                            tag: url,
+                                            child: ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              child: Image.network(
+                                                url,
+                                                fit: BoxFit.contain,
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                      TextButton.icon(
-                                        onPressed: () => _downloadFile(url),
-                                        icon: const Icon(Icons.download),
-                                        label: const Text('Tải ảnh này'),
-                                      ),
-                                    ],
+                                        TextButton.icon(
+                                          onPressed: () => _downloadFile(url),
+                                          icon: const Icon(Icons.download),
+                                          label: const Text('Tải ảnh này'),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              );
-                            },
-                          )
-                        : Center(
-                            child: Text(
-                              _outputStatusText,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.grey),
+                                );
+                              },
+                            )
+                          : Center(
+                              child: Text(
+                                _outputStatusText,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.grey),
+                              ),
                             ),
-                          ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

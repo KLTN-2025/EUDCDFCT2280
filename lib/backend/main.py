@@ -160,17 +160,27 @@ def convert_pdf_simple_to_pdf(path: str, target_font: str, force_all: bool):
 
 
 # --- Thay GCS → AWS S3 ---
+# def upload_to_s3(local_path: str) -> str:
+#     key = f"results/{uuid.uuid4().hex}_{os.path.basename(local_path)}"
+#     s3_client.upload_file(local_path, S3_BUCKET, key)
+
+#     # Generate presigned URL (1 day)
+#     url = s3_client.generate_presigned_url(
+#         "get_object",
+#         Params={"Bucket": S3_BUCKET, "Key": key},
+#         ExpiresIn=3600 * 24
+#     )
+#     return url
 def upload_to_s3(local_path: str) -> str:
     key = f"results/{uuid.uuid4().hex}_{os.path.basename(local_path)}"
-    s3_client.upload_file(local_path, S3_BUCKET, key)
-
-    # Generate presigned URL (1 day)
-    url = s3_client.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": S3_BUCKET, "Key": key},
-        ExpiresIn=3600 * 24
+    s3_client.upload_file(
+        local_path,
+        S3_BUCKET,
+        key,
+        ExtraArgs={'ACL': 'public-read', 'ContentType': 'image/png'}
     )
-    return url
+    return f"https://{S3_BUCKET}.s3.amazonaws.com/{key}"
+
 
 
 @app.post("/convert")
