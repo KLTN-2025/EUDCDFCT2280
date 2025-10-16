@@ -170,26 +170,34 @@ def convert_pdf_simple_to_pdf(path: str, target_font: str, force_all: bool):
 #     )
 #     return f"https://{S3_BUCKET}.s3.amazonaws.com/{key}"
 
+# def upload_to_s3(local_path: str) -> str:
+#     key = f"results/{uuid.uuid4().hex}_{os.path.basename(local_path)}"
+#     content_type = "image/png"
+#     if local_path.endswith(".jpg") or local_path.endswith(".jpeg"):
+#         content_type = "image/jpeg"
+#     elif local_path.endswith(".pdf"):
+#         content_type = "application/pdf"
+#     elif local_path.endswith(".docx"):
+#         content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+#     s3_client.upload_file(
+#         local_path,
+#         S3_BUCKET,
+#         key,
+#         ExtraArgs={'ACL': 'public-read', 'ContentType': content_type}
+#     )
+#     print("🔹 Uploading to:", S3_BUCKET, "with key:", key)
+#     return f"https://{S3_BUCKET}.s3.amazonaws.com/{key}"
+
 def upload_to_s3(local_path: str) -> str:
     key = f"results/{uuid.uuid4().hex}_{os.path.basename(local_path)}"
-    content_type = "image/png"
-    if local_path.endswith(".jpg") or local_path.endswith(".jpeg"):
-        content_type = "image/jpeg"
-    elif local_path.endswith(".pdf"):
-        content_type = "application/pdf"
-    elif local_path.endswith(".docx"):
-        content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-
     s3_client.upload_file(
         local_path,
         S3_BUCKET,
         key,
-        ExtraArgs={'ACL': 'public-read', 'ContentType': content_type}
+        ExtraArgs={'ContentType': 'image/png'}  # ❌ Bỏ ACL
     )
-    print("🔹 Uploading to:", S3_BUCKET, "with key:", key)
     return f"https://{S3_BUCKET}.s3.amazonaws.com/{key}"
-
-
 
 
 @app.post("/convert")
