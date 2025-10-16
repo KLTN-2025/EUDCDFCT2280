@@ -17,13 +17,26 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from google.cloud import firestore
 # from docx2pdf import convert
 import re
+import logging
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+import boto3, uuid, os
+from botocore.exceptions import ClientError
+import uuid
 
+
+# 🟢 Cấu hình log chi tiết
+logging.basicConfig(
+    level=logging.DEBUG,  # Hiển thị toàn bộ log chi tiết
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+
+logger = logging.getLogger("ecolive-debug")
 
 # cred_path = "/etc/secrets/firebase-key.json"
 # db = firestore.Client.from_service_account_json(cred_path)
@@ -43,13 +56,23 @@ load_dotenv()
 print("Firestore Project ID:", db.project) 
 
 # --- AWS S3 Config --- 
+S3_REGION = os.getenv("AWS_DEFAULT_REGION", "ap-southeast-2")
 S3_BUCKET = os.getenv("AWS_S3_BUCKET", "my-ecolive-storage") 
 s3_client = boto3.client( 
     "s3", 
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"), 
     aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"), 
     region_name=os.getenv("AWS_DEFAULT_REGION", "ap-southeast-2") 
-) 
+)
+
+# 🟢 Firestore client
+try:
+    firestore_client = firestore.Client()
+    logger.info("✅ Firestore connected successfully.")
+    logger.info(f"Firestore Project ID: {firestore_client.project}")
+except Exception as e:
+    logger.error(f"❌ Firestore connection failed: {e}")
+    firestore_client = None
 
 app = FastAPI()
 
@@ -166,38 +189,32 @@ def convert_pdf_simple_to_pdf(path: str, target_font: str, force_all: bool):
 #         local_path,
 #         S3_BUCKET,
 #         key,
-#         ExtraArgs={'ContentType': 'image/png'}
+#         ExtraArgs={'ContentType': 'image/png'}  # ❌ Bỏ ACL
 #     )
 #     return f"https://{S3_BUCKET}.s3.amazonaws.com/{key}"
 
-# def upload_to_s3(local_path: str) -> str:
-#     key = f"results/{uuid.uuid4().hex}_{os.path.basename(local_path)}"
-#     content_type = "image/png"
-#     if local_path.endswith(".jpg") or local_path.endswith(".jpeg"):
-#         content_type = "image/jpeg"
-#     elif local_path.endswith(".pdf"):
-#         content_type = "application/pdf"
-#     elif local_path.endswith(".docx"):
-#         content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-
-#     s3_client.upload_file(
-#         local_path,
-#         S3_BUCKET,
-#         key,
-#         ExtraArgs={'ACL': 'public-read', 'ContentType': content_type}
-#     )
-#     print("🔹 Uploading to:", S3_BUCKET, "with key:", key)
-#     return f"https://{S3_BUCKET}.s3.amazonaws.com/{key}"
-
-def upload_to_s3(local_path: str) -> str:
+def upload_to_s3(local_path: str, content_type="image/png") -> str:
     key = f"results/{uuid.uuid4().hex}_{os.path.basename(local_path)}"
-    s3_client.upload_file(
-        local_path,
-        S3_BUCKET,
-        key,
-        ExtraArgs={'ContentType': 'image/png'}  # ❌ Bỏ ACL
-    )
-    return f"https://{S3_BUCKET}.s3.amazonaws.com/{key}"
+    logger.debug(f"🔄 Bắt đầu upload file lên S3: {key}")
+
+    try:
+        s3_client.upload_file(
+            local_path,
+            S3_BUCKET,
+            key,
+            ExtraArgs={"ContentType": content_type},  # ❌ KHÔNG dùng ACL
+        )
+        url = f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{key}"
+        logger.info(f"✅ Upload thành công: {url}")
+        return url
+
+    except ClientError as e:
+        logger.error(f"❌ Lỗi AWS S3 khi upload: {e}")
+        raise HTTPException(status_code=500, detail=f"AWS S3 Upload Error: {str(e)}")
+
+    except Exception as e:
+        logger.error(f"⚠️ Lỗi không xác định khi upload_to_s3: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/convert")
@@ -512,27 +529,6 @@ async def convert_to_image(file: UploadFile = File(...), image_type: str = Form(
             url = upload_to_s3(path)
             s3_urls.append(url)
 
-        # 🟢 Lưu log Firestore
-        # db.collection("image_conversion_history").add({
-        #     "original_filename": file.filename,
-        #     "image_urls": s3_urls,
-        #     "timestamp": firestore.SERVER_TIMESTAMP
-        # })
-        
-        # 🟢 Lưu log Firestore theo từng user
-        # Yêu cầu Flutter gửi thêm field user_id (hoặc email)
-        # ví dụ: Form("user_id") hoặc từ token Firebase
-        # user_id = "anonymous_user"  # fallback nếu chưa có user_id trong form
-        # try:
-        #     form_user_id = await file.form()  # Nếu bạn dùng FormData, có thể lấy từ đó
-        # except:
-        #     form_user_id = None
-
-        # if form_user_id and "user_id" in form_user_id:
-        #     user_id = form_user_id["user_id"]
-        # 🟢 user_id đã nhận sẵn từ Form() ở tham số hàm
-        # if not user_id:
-        #     user_id = "anonymous_user"
         # 🟢 Nếu không gửi user_id thì fallback
         if not user_id or user_id.strip() == "":
             user_id = "anonymous_user"
@@ -775,42 +771,6 @@ def get_server_ip():
         s.close()
     return {"ip": ip}
 
-# @app.get("/get-history")
-# async def get_history(user_id: str):
-#     """
-#     Lấy toàn bộ lịch sử chuyển đổi ảnh của user.
-#     Trả về danh sách gồm: filename, image_urls, timestamp.
-#     """
-#     try:
-#         # 🟢 Tham chiếu đến user
-#         user_ref = db.collection("users").document(user_id)
-#         history_ref = user_ref.collection("image_conversion_history")
-
-#         # 🟢 Lấy danh sách lịch sử, sắp xếp theo thời gian giảm dần
-#         history_docs = history_ref.order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
-
-#         history_list = []
-#         for doc in history_docs:
-#             data = doc.to_dict()
-#             history_list.append({
-#                 "id": doc.id,
-#                 "original_filename": data.get("original_filename"),
-#                 "image_urls": data.get("image_urls"),
-#                 "timestamp": data.get("timestamp").isoformat() if data.get("timestamp") else None
-#             })
-
-#         return JSONResponse({
-#             "status": "success",
-#             "user_id": user_id,
-#             "history": history_list
-#         })
-
-#     except Exception as e:
-#         print("❌ Lỗi khi lấy lịch sử:", e)
-#         return JSONResponse(
-#             status_code=500,
-#             content={"status": "error", "message": str(e)}
-#         )
 @app.get("/get-history")
 async def get_history(user_id: str):
     """
@@ -854,3 +814,18 @@ async def get_history(user_id: str):
             status_code=500,
             content={"status": "error", "message": str(e)}
         )
+
+# ===========================================================
+# 🔹 Kiểm tra server
+# ===========================================================
+@app.get("/")
+def home():
+    return {"message": "EcoLive Font Converter API running ✅"}
+
+
+# ===========================================================
+# 🔹 Chạy local (debug)
+# ===========================================================
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
