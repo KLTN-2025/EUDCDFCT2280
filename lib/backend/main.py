@@ -186,6 +186,7 @@ def upload_to_s3(local_path: str) -> str:
         key,
         ExtraArgs={'ACL': 'public-read', 'ContentType': content_type}
     )
+    print("🔹 Uploading to:", S3_BUCKET, "with key:", key)
     return f"https://{S3_BUCKET}.s3.amazonaws.com/{key}"
 
 
@@ -426,7 +427,13 @@ async def convert_to_image(file: UploadFile = File(...), image_type: str = Form(
 
         # 🟢 PDF → chuyển từng trang thành ảnh
         if file_ext == "pdf":
-            doc = fitz.open(temp_path)
+            # doc = fitz.open(temp_path)
+            try:
+                doc = fitz.open(temp_path)
+            except Exception as e:
+                print("⚠️ Không thể mở PDF:", e)
+                return JSONResponse({"error": "File PDF bị hỏng hoặc không hợp lệ"}, status_code=400)
+
             for i, page in enumerate(doc):
                 pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # tăng độ nét
                 img_name = f"{uuid.uuid4()}.{image_type.lower()}"
