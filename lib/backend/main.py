@@ -28,6 +28,8 @@ from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 import boto3, uuid, os
 from botocore.exceptions import ClientError
 import uuid
+from langdetect import detect, DetectorFactory
+DetectorFactory.seed = 0  # đảm bảo kết quả ổn định
 
 
 # 🟢 Cấu hình log chi tiết
@@ -829,3 +831,32 @@ def home():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+@app.post("/detect-language")
+async def detect_language(file: UploadFile = File(...)):
+    """
+    Tự động phát hiện ngôn ngữ trong file được tải lên.
+    """
+    try:
+        content = await file.read()
+
+        # Giải mã nội dung file (thử nhiều kiểu)
+        text = None
+        for enc in ["utf-8", "latin-1", "utf-16"]:
+            try:
+                text = content.decode(enc)
+                break
+            except Exception:
+                continue
+
+        if not text:
+            raise HTTPException(status_code=400, detail="Không đọc được nội dung file.")
+
+        # Giới hạn độ dài để phát hiện nhanh
+        snippet = text[:3000]
+        detected_lang = detect(snippet)
+
+        return {"detected_lang": detected_lang}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi phát hiện ngôn ngữ: {str(e)}")
