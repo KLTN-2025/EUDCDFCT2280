@@ -1,138 +1,12 @@
-// import 'package:flutter/material.dart';
-
-// class LanguageConverterScreen extends StatefulWidget {
-//   const LanguageConverterScreen({super.key});
-
-//   @override
-//   State<LanguageConverterScreen> createState() =>
-//       _LanguageConverterScreenState();
-// }
-
-// class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
-//   // Biến để lưu trữ tên file đã tải lên
-//   // ignore: unused_field
-//   String? _uploadedFileName;
-
-//   // Biến để lưu trữ ngôn ngữ mới đã chọn
-//   String _selectedLanguage = 'Korean';
-
-//   // Biến để hiển thị trạng thái của file đã chuyển đổi
-//   // ignore: prefer_final_fields
-//   String _outputStatusText = 'Nội dung file đã chuyển đổi nằm ở đây';
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: const Text('LANGUAGE TO LANGUAGE'),
-//       ),
-//       body: Padding(
-//         padding: const EdgeInsets.all(20.0),
-//         child: Column(
-//           crossAxisAlignment: CrossAxisAlignment.stretch,
-//           children: [
-//             // Vùng Upload File
-//             GestureDetector(
-//               onTap: () {
-//                 // TODO: Triển khai chức năng chọn file ở đây
-//               },
-//               child: Container(
-//                 height: 150,
-//                 decoration: BoxDecoration(
-//                   color: Colors.grey[200],
-//                   borderRadius: BorderRadius.circular(15),
-//                 ),
-//                 child: const Column(
-//                   mainAxisAlignment: MainAxisAlignment.center,
-//                   children: [
-//                     Icon(Icons.cloud_upload, size: 50, color: Colors.grey),
-//                     SizedBox(height: 10),
-//                     Text('UPLOAD FILE', style: TextStyle(color: Colors.grey)),
-//                   ],
-//                 ),
-//               ),
-//             ),
-//             const SizedBox(height: 30),
-
-//             // Phần chọn Ngôn ngữ mới
-//             const Text('Ngôn ngữ mới', style: TextStyle(fontSize: 16)),
-//             const SizedBox(height: 8),
-//             DropdownButtonFormField<String>(
-//               value: _selectedLanguage,
-//               decoration: const InputDecoration(
-//                 border: OutlineInputBorder(),
-//               ),
-//               items: <String>[
-//                 'Korean',
-//                 'Chinese',
-//                 'Japanese',
-//                 'English',
-//                 'French'
-//               ].map((String value) {
-//                 return DropdownMenuItem<String>(
-//                   value: value,
-//                   child: Text(value),
-//                 );
-//               }).toList(),
-//               onChanged: (String? newValue) {
-//                 setState(() {
-//                   _selectedLanguage = newValue!;
-//                 });
-//               },
-//             ),
-//             const SizedBox(height: 30),
-
-//             // Phần Output
-//             const Text('Output', style: TextStyle(fontSize: 16)),
-//             const SizedBox(height: 8),
-//             Container(
-//               height: 100,
-//               decoration: BoxDecoration(
-//                 color: Colors.grey[200],
-//                 borderRadius: BorderRadius.circular(15),
-//               ),
-//               child: Center(
-//                 child: Text(
-//                   _outputStatusText,
-//                   style: const TextStyle(color: Colors.grey),
-//                 ),
-//               ),
-//             ),
-//             const SizedBox(height: 50),
-
-//             // Nút Tải về
-//             Column(
-//               children: [
-//                 InkWell(
-//                   onTap: () {
-//                     // TODO: Triển khai chức năng tải file về ở đây
-//                   },
-//                   borderRadius: BorderRadius.circular(50),
-//                   child: Container(
-//                     padding: const EdgeInsets.all(15),
-//                     decoration: BoxDecoration(
-//                       shape: BoxShape.circle,
-//                       color: Colors.blue[600],
-//                     ),
-//                     child: const Icon(Icons.download,
-//                         color: Colors.white, size: 30),
-//                   ),
-//                 ),
-//                 const SizedBox(height: 5),
-//                 const Text('Tải về', style: TextStyle(color: Colors.blue)),
-//               ],
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class LanguageConverterScreen extends StatefulWidget {
   const LanguageConverterScreen({super.key});
@@ -147,11 +21,10 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
   String _selectedLanguage = 'Korean';
   String _outputStatusText = 'Nội dung file đã chuyển đổi nằm ở đây';
   String? _downloadUrl;
-
   bool _isLoading = false;
 
-  // 🟢 Thay IP bên dưới bằng IP LAN của backend bạn (xem bằng /get-server-ip)
-  final String backendBaseUrl = "http://192.168.1.5:8000";
+  // 🔗 Backend URL của bạn (chú ý đổi thành IP thực tế)
+  final String backendBaseUrl = "https://ecolive-font-converter.onrender.com";
 
   Future<void> _pickAndUploadFile() async {
     try {
@@ -159,7 +32,6 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
         type: FileType.custom,
         allowedExtensions: ['pdf', 'docx', 'txt'],
       );
-
       if (result == null) return;
 
       File file = File(result.files.single.path!);
@@ -169,7 +41,7 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
         _isLoading = true;
       });
 
-      // 🧠 1️⃣ Gửi file lên để phát hiện ngôn ngữ
+      // 1️⃣ Gửi file phát hiện ngôn ngữ
       var detectReq = http.MultipartRequest(
         'POST',
         Uri.parse('$backendBaseUrl/detect-language'),
@@ -196,7 +68,7 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
             "🌐 Phát hiện: ${detectedLang.toUpperCase()} → ${_selectedLanguage.toUpperCase()}\n⏳ Đang dịch...";
       });
 
-      // 🌍 2️⃣ Tiến hành dịch tài liệu
+      // 2️⃣ Gửi file dịch
       var translateReq = http.MultipartRequest(
         'POST',
         Uri.parse('$backendBaseUrl/translate-doc'),
@@ -210,10 +82,12 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
 
       if (transResp.statusCode == 200) {
         var jsonResponse = json.decode(transBody);
+
+        // ✅ backend nên trả cả 'translated_text' và 'result_url'
         setState(() {
           _downloadUrl = jsonResponse['result_url'];
-          _outputStatusText =
-              "✅ Dịch thành công!\n(${detectedLang.toUpperCase()} → ${_selectedLanguage.toUpperCase()})";
+          _outputStatusText = jsonResponse['translated_text'] ??
+              "✅ Dịch thành công! (${detectedLang.toUpperCase()} → ${_selectedLanguage.toUpperCase()})";
         });
       } else {
         setState(() {
@@ -232,12 +106,125 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
     }
   }
 
+  // Future<void> _downloadFile() async {
+  //   if (_downloadUrl == null) return;
+
+  //   try {
+  //     // 🟢 Yêu cầu quyền truy cập bộ nhớ (Android 11+)
+  //     if (Platform.isAndroid) {
+  //       await Permission.storage.request();
+  //     }
+
+  //     setState(() => _isLoading = true);
+
+  //     // 📂 Đường dẫn thư mục "Download"
+  //     Directory downloadDir = Directory('/storage/emulated/0/Download');
+  //     if (!await downloadDir.exists()) {
+  //       downloadDir =
+  //           await getExternalStorageDirectory() ?? Directory.systemTemp;
+  //     }
+
+  //     String fileName = _uploadedFileName != null
+  //         // ignore: prefer_interpolation_to_compose_strings
+  //         ? _uploadedFileName!.split('.').first + '_translated.docx'
+  //         : 'translated_file.docx';
+  //     String savePath = '${downloadDir.path}/$fileName';
+
+  //     await Dio().download(_downloadUrl!, savePath);
+
+  //     setState(() => _isLoading = false);
+
+  //     // ignore: use_build_context_synchronously
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(content: Text("✅ Đã tải về: $savePath")),
+  //     );
+
+  //     // 🔓 Mở trực tiếp file
+  //     await OpenFilex.open(savePath);
+  //   } catch (e) {
+  //     setState(() => _isLoading = false);
+  //     // ignore: use_build_context_synchronously
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(content: Text("❌ Lỗi khi tải: $e")),
+  //     );
+  //   }
+  // }
   Future<void> _downloadFile() async {
     if (_downloadUrl == null) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("URL tải về: $_downloadUrl")),
+
+    try {
+      if (await Permission.storage.request().isGranted) {
+        Directory? directory;
+
+        if (Platform.isAndroid) {
+          directory = Directory('/storage/emulated/0/Download');
+          if (!await directory.exists()) {
+            directory = await getExternalStorageDirectory();
+          }
+        } else {
+          directory = await getApplicationDocumentsDirectory();
+        }
+
+        String filename = _uploadedFileName != null
+            // ignore: prefer_interpolation_to_compose_strings
+            ? _uploadedFileName!.split('.').first + '_translated.docx'
+            : 'translated_file.docx';
+        String savePath = '${directory!.path}/$filename';
+
+        // ignore: avoid_print
+        print("📥 Đang tải về: $savePath");
+
+        await Dio().download(
+          _downloadUrl!,
+          savePath,
+          onReceiveProgress: (received, total) {
+            if (total != -1) {
+              // ignore: avoid_print
+              print("📦 ${(received / total * 100).toStringAsFixed(0)}%");
+            }
+          },
+        );
+
+        // ignore: use_build_context_synchronously
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("✅ Đã tải về: $savePath")),
+        );
+
+        await OpenFilex.open(savePath);
+      } else {
+        await Permission.storage.request();
+        // ignore: use_build_context_synchronously
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("⚠️ Không có quyền truy cập bộ nhớ!")),
+        );
+      }
+    } catch (e) {
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Lỗi khi tải: $e")),
+      );
+    }
+  }
+
+  void _showFullText() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Xem nội dung sau khi dịch"),
+        content: SingleChildScrollView(
+          child: Text(
+            _outputStatusText,
+            style: const TextStyle(fontSize: 16),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Đóng"),
+          ),
+        ],
+      ),
     );
-    // Có thể dùng open_filex.open(downloadPath) nếu muốn mở trực tiếp
   }
 
   @override
@@ -307,21 +294,25 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
             const SizedBox(height: 30),
             const Text('Output', style: TextStyle(fontSize: 16)),
             const SizedBox(height: 8),
-            Container(
-              height: 100,
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Center(
-                child: Text(
-                  _outputStatusText,
-                  style: const TextStyle(color: Colors.grey),
-                  textAlign: TextAlign.center,
+            GestureDetector(
+              onTap: _showFullText,
+              child: Container(
+                height: 120,
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(10),
+                  child: Text(
+                    _outputStatusText,
+                    style: const TextStyle(color: Colors.black87),
+                    textAlign: TextAlign.left,
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 50),
+            const SizedBox(height: 40),
             Column(
               children: [
                 InkWell(

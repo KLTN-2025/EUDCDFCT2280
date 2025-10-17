@@ -30,7 +30,9 @@ from botocore.exceptions import ClientError
 import uuid
 from langdetect import detect, DetectorFactory
 DetectorFactory.seed = 0  # đảm bảo kết quả ổn định
-
+from tempfile import NamedTemporaryFile
+from deep_translator import GoogleTranslator
+import mimetypes
 
 # 🟢 Cấu hình log chi tiết
 logging.basicConfig(
@@ -40,8 +42,6 @@ logging.basicConfig(
 
 logger = logging.getLogger("ecolive-debug")
 
-# cred_path = "/etc/secrets/firebase-key.json"
-# db = firestore.Client.from_service_account_json(cred_path)
 # 🔹 Xác định đường dẫn chính xác đến file JSON trong thư mục backend
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 cred_path = os.path.join(BASE_DIR, "secrets/firebase-key.json")
@@ -54,7 +54,6 @@ print("✅ Firestore connected successfully.")
 load_dotenv() 
 
 # --- Firestore giữ nguyên --- 
-# db = firestore.Client() 
 print("Firestore Project ID:", db.project) 
 
 # --- AWS S3 Config --- 
@@ -185,16 +184,6 @@ def convert_pdf_simple_to_pdf(path: str, target_font: str, force_all: bool):
 
 
 # --- Thay GCS → AWS S3 ---
-# def upload_to_s3(local_path: str) -> str:
-#     key = f"results/{uuid.uuid4().hex}_{os.path.basename(local_path)}"
-#     s3_client.upload_file(
-#         local_path,
-#         S3_BUCKET,
-#         key,
-#         ExtraArgs={'ContentType': 'image/png'}  # ❌ Bỏ ACL
-#     )
-#     return f"https://{S3_BUCKET}.s3.amazonaws.com/{key}"
-
 def upload_to_s3(local_path: str, content_type="image/png") -> str:
     key = f"results/{uuid.uuid4().hex}_{os.path.basename(local_path)}"
     logger.debug(f"🔄 Bắt đầu upload file lên S3: {key}")
@@ -552,19 +541,6 @@ async def convert_to_image(file: UploadFile = File(...), image_type: str = Form(
     
     
 
-    # except Exception as e:
-    #     return JSONResponse({"error": str(e)}, status_code=500)
-
-    # finally:
-    #     # Xoá file tạm
-    #     try:
-    #         if os.path.exists(temp_path):
-    #             os.remove(temp_path)
-    #         for f in output_files:
-    #             if os.path.exists(f):
-    #                 os.remove(f)
-    #     except:
-    #         pass
     except Exception as e:
         import traceback
         print("🔥 Lỗi /convert-to-image:", traceback.format_exc())
@@ -690,8 +666,13 @@ async def translate_doc(file: UploadFile = File(...), target_lang: str = Form("e
         new_doc.add_paragraph(translated_text)
         new_doc.save(out_docx)
 
+        # url = upload_to_s3(out_docx)
+        # return JSONResponse({"result_url": url})
         url = upload_to_s3(out_docx)
-        return JSONResponse({"result_url": url})
+        return JSONResponse({
+            "result_url": url,
+            "translated_preview": translated_text[:3000]  # gửi trước 3.000 ký tự để hiển thị preview
+        })
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
     finally:
