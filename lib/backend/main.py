@@ -33,6 +33,8 @@ DetectorFactory.seed = 0  # đảm bảo kết quả ổn định
 from tempfile import NamedTemporaryFile
 from deep_translator import GoogleTranslator
 import mimetypes
+from transformers import pipeline
+import tempfile, boto3, os
 
 # 🟢 Cấu hình log chi tiết
 logging.basicConfig(
@@ -633,51 +635,123 @@ def ensure_font_available(font_name: str) -> str:
     except:
         return DEFAULT_FALLBACK_FONT
 
+# --- HUGGINGFACE TRANSLATOR ---
+def get_translator(src_lang="en", tgt_lang="vi"):
+    model_name = f"Helsinki-NLP/opus-mt-{src_lang}-{tgt_lang}"
+    return pipeline("translation", model=model_name)
+
 @app.post("/translate-doc")
-async def translate_doc(file: UploadFile = File(...), target_lang: str = Form("en")):
-    tmp = save_temp_file(file)
+async def translate_doc(file: UploadFile, target_lang: str = Form(...)):
+    """
+    Nhận file DOCX hoặc PDF → dịch → lưu file dịch lên S3 → trả về link tải + preview.
+    """
     try:
-        ext = tmp.lower().rsplit(".", 1)[-1]
-        text = ""
-        if ext == "docx":
-            doc = Document(tmp)
-            for p in doc.paragraphs:
-                text += p.text + "\n"
-        elif ext == "pdf":
-            import fitz
-            pdf = fitz.open(tmp)
-            for page in pdf:
-                text += page.get_text("text") + "\n"
+        # Tạo file tạm
+        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=f"_{file.filename}")
+        temp_input.write(await file.read())
+        temp_input.close()
+
+        # Kiểm tra định dạng file
+        if not (file.filename.endswith(".docx") or file.filename.endswith(".txt")):
+            return JSONResponse(status_code=400, content={"error": "Chỉ hỗ trợ file .docx hoặc .txt"})
+
+        # Đọc nội dung văn bản
+        if file.filename.endswith(".docx"):
+            doc = Document(temp_input.name)
+            paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
         else:
-            return JSONResponse({"error": "Unsupported file"}, status_code=400)
+            with open(temp_input.name, "r", encoding="utf-8") as f:
+                paragraphs = [line.strip() for line in f.readlines() if line.strip()]
 
-        # 🔹 Dịch qua Hugging Face
-        response = requests.post(
-            "https://api-inference.huggingface.co/models/Helsinki-NLP/opus-mt-mul-en",
-            headers=HF_HEADERS,
-            json={"inputs": text}
-        )
-        result = response.json()
-        translated_text = result[0]["translation_text"] if isinstance(result, list) else text
+        if not paragraphs:
+            return JSONResponse(status_code=400, content={"error": "Không tìm thấy nội dung văn bản"})
 
-        # ✅ Xuất ra DOCX mới
-        out_docx = tmp + f".{target_lang}.docx"
-        new_doc = Document()
-        new_doc.add_paragraph(translated_text)
-        new_doc.save(out_docx)
+        # Dùng pipeline dịch (tự phát hiện hướng ngôn ngữ)
+        translator = pipeline("translation", model="Helsinki-NLP/opus-mt-mul-en")
 
-        # url = upload_to_s3(out_docx)
-        # return JSONResponse({"result_url": url})
-        url = upload_to_s3(out_docx)
-        return JSONResponse({
-            "result_url": url,
-            "translated_preview": translated_text[:3000]  # gửi trước 3.000 ký tự để hiển thị preview
+        translated_paragraphs = []
+        for p in paragraphs:
+            result = translator(p, max_length=512)[0]["translation_text"]
+            translated_paragraphs.append(result)
+
+        # Tạo file dịch DOCX
+        translated_doc = Document()
+        for p in translated_paragraphs:
+            translated_doc.add_paragraph(p)
+
+        temp_output = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
+        translated_doc.save(temp_output.name)
+        temp_output.close()
+
+        # Upload lên S3
+        s3_key = f"translated/{os.path.basename(temp_output.name)}"
+        s3_client.upload_file(temp_output.name, S3_BUCKET, s3_key)
+        s3_url = f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{s3_key}"
+
+        # Preview: lấy 1 đoạn đầu tiên
+        preview_text = " ".join(translated_paragraphs[:3])
+
+        return JSONResponse(content={
+            "status": "success",
+            "result_url": s3_url,
+            "translated_preview": preview_text
         })
+
     except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
     finally:
-        try: os.remove(tmp)
-        except: pass
+        # Xóa file tạm để tránh đầy bộ nhớ
+        if os.path.exists(temp_input.name):
+            os.remove(temp_input.name)
+        if "temp_output" in locals() and os.path.exists(temp_output.name):
+            os.remove(temp_output.name)
+
+# @app.post("/translate-doc")
+# async def translate_doc(file: UploadFile = File(...), target_lang: str = Form("en")):
+#     tmp = save_temp_file(file)
+#     try:
+#         ext = tmp.lower().rsplit(".", 1)[-1]
+#         text = ""
+#         if ext == "docx":
+#             doc = Document(tmp)
+#             for p in doc.paragraphs:
+#                 text += p.text + "\n"
+#         elif ext == "pdf":
+#             import fitz
+#             pdf = fitz.open(tmp)
+#             for page in pdf:
+#                 text += page.get_text("text") + "\n"
+#         else:
+#             return JSONResponse({"error": "Unsupported file"}, status_code=400)
+
+#         # 🔹 Dịch qua Hugging Face
+#         response = requests.post(
+#             "https://api-inference.huggingface.co/models/Helsinki-NLP/opus-mt-mul-en",
+#             headers=HF_HEADERS,
+#             json={"inputs": text}
+#         )
+#         result = response.json()
+#         translated_text = result[0]["translation_text"] if isinstance(result, list) else text
+
+#         # ✅ Xuất ra DOCX mới
+#         out_docx = tmp + f".{target_lang}.docx"
+#         new_doc = Document()
+#         new_doc.add_paragraph(translated_text)
+#         new_doc.save(out_docx)
+
+#         # url = upload_to_s3(out_docx)
+#         # return JSONResponse({"result_url": url})
+#         url = upload_to_s3(out_docx)
+#         return JSONResponse({
+#             "result_url": url,
+#             "translated_preview": translated_text[:3000]  # gửi trước 3.000 ký tự để hiển thị preview
+#         })
+#     except Exception as e:
+#         return JSONResponse({"error": str(e)}, status_code=500)
+#     finally:
+#         try: os.remove(tmp)
+#         except: pass
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):

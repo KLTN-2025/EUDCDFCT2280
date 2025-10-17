@@ -110,39 +110,52 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
   //   if (_downloadUrl == null) return;
 
   //   try {
-  //     // 🟢 Yêu cầu quyền truy cập bộ nhớ (Android 11+)
-  //     if (Platform.isAndroid) {
+  //     if (await Permission.storage.request().isGranted) {
+  //       Directory? directory;
+
+  //       if (Platform.isAndroid) {
+  //         directory = Directory('/storage/emulated/0/Download');
+  //         if (!await directory.exists()) {
+  //           directory = await getExternalStorageDirectory();
+  //         }
+  //       } else {
+  //         directory = await getApplicationDocumentsDirectory();
+  //       }
+
+  //       String filename = _uploadedFileName != null
+  //           // ignore: prefer_interpolation_to_compose_strings
+  //           ? _uploadedFileName!.split('.').first + '_translated.docx'
+  //           : 'translated_file.docx';
+  //       String savePath = '${directory!.path}/$filename';
+
+  //       // ignore: avoid_print
+  //       print("📥 Đang tải về: $savePath");
+
+  //       await Dio().download(
+  //         _downloadUrl!,
+  //         savePath,
+  //         onReceiveProgress: (received, total) {
+  //           if (total != -1) {
+  //             // ignore: avoid_print
+  //             print("📦 ${(received / total * 100).toStringAsFixed(0)}%");
+  //           }
+  //         },
+  //       );
+
+  //       // ignore: use_build_context_synchronously
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(content: Text("✅ Đã tải về: $savePath")),
+  //       );
+
+  //       await OpenFilex.open(savePath);
+  //     } else {
   //       await Permission.storage.request();
+  //       // ignore: use_build_context_synchronously
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(content: Text("⚠️ Không có quyền truy cập bộ nhớ!")),
+  //       );
   //     }
-
-  //     setState(() => _isLoading = true);
-
-  //     // 📂 Đường dẫn thư mục "Download"
-  //     Directory downloadDir = Directory('/storage/emulated/0/Download');
-  //     if (!await downloadDir.exists()) {
-  //       downloadDir =
-  //           await getExternalStorageDirectory() ?? Directory.systemTemp;
-  //     }
-
-  //     String fileName = _uploadedFileName != null
-  //         // ignore: prefer_interpolation_to_compose_strings
-  //         ? _uploadedFileName!.split('.').first + '_translated.docx'
-  //         : 'translated_file.docx';
-  //     String savePath = '${downloadDir.path}/$fileName';
-
-  //     await Dio().download(_downloadUrl!, savePath);
-
-  //     setState(() => _isLoading = false);
-
-  //     // ignore: use_build_context_synchronously
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(content: Text("✅ Đã tải về: $savePath")),
-  //     );
-
-  //     // 🔓 Mở trực tiếp file
-  //     await OpenFilex.open(savePath);
   //   } catch (e) {
-  //     setState(() => _isLoading = false);
   //     // ignore: use_build_context_synchronously
   //     ScaffoldMessenger.of(context).showSnackBar(
   //       SnackBar(content: Text("❌ Lỗi khi tải: $e")),
@@ -153,55 +166,58 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
     if (_downloadUrl == null) return;
 
     try {
-      if (await Permission.storage.request().isGranted) {
-        Directory? directory;
+      setState(() => _isLoading = true);
 
-        if (Platform.isAndroid) {
-          directory = Directory('/storage/emulated/0/Download');
-          if (!await directory.exists()) {
-            directory = await getExternalStorageDirectory();
-          }
-        } else {
-          directory = await getApplicationDocumentsDirectory();
-        }
-
-        String filename = _uploadedFileName != null
-            // ignore: prefer_interpolation_to_compose_strings
-            ? _uploadedFileName!.split('.').first + '_translated.docx'
-            : 'translated_file.docx';
-        String savePath = '${directory!.path}/$filename';
-
-        // ignore: avoid_print
-        print("📥 Đang tải về: $savePath");
-
-        await Dio().download(
-          _downloadUrl!,
-          savePath,
-          onReceiveProgress: (received, total) {
-            if (total != -1) {
-              // ignore: avoid_print
-              print("📦 ${(received / total * 100).toStringAsFixed(0)}%");
-            }
-          },
-        );
-
-        // ignore: use_build_context_synchronously
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("✅ Đã tải về: $savePath")),
-        );
-
-        await OpenFilex.open(savePath);
-      } else {
-        await Permission.storage.request();
+      // 📱 Yêu cầu quyền đúng cách
+      var status = await Permission.manageExternalStorage.request();
+      if (status.isDenied || status.isPermanentlyDenied) {
         // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("⚠️ Không có quyền truy cập bộ nhớ!")),
         );
+        setState(() => _isLoading = false);
+        return;
       }
-    } catch (e) {
+
+      // 📂 Lấy thư mục Download đúng chuẩn Android
+      Directory? directory = Directory('/storage/emulated/0/Download');
+      if (!await directory.exists()) {
+        directory = await getExternalStorageDirectory();
+      }
+
+      String fileName = _uploadedFileName != null
+          // ignore: prefer_interpolation_to_compose_strings
+          ? _uploadedFileName!.split('.').first + '_translated.docx'
+          : 'translated_file.docx';
+      String savePath = '${directory!.path}/$fileName';
+
+      // ignore: avoid_print
+      print("📥 Lưu file tại: $savePath");
+
+      await Dio().download(
+        _downloadUrl!,
+        savePath,
+        onReceiveProgress: (rec, total) {
+          if (total != -1) {
+            // ignore: avoid_print
+            print("⬇️ ${(rec / total * 100).toStringAsFixed(0)}%");
+          }
+        },
+      );
+
+      setState(() => _isLoading = false);
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Lỗi khi tải: $e")),
+        SnackBar(content: Text("✅ File đã tải về: $savePath")),
+      );
+
+      // Mở file trực tiếp
+      await OpenFilex.open(savePath);
+    } catch (e) {
+      setState(() => _isLoading = false);
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Lỗi khi tải file: $e")),
       );
     }
   }
