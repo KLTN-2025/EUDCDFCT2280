@@ -668,7 +668,18 @@ async def translate_doc(
             return {"error": "Unsupported file format"}
 
         # Dịch nội dung
-        translated_text = GoogleTranslator(source='auto', target=target_lang).translate(text)
+        # translated_text = GoogleTranslator(source='auto', target=target_lang).translate(text)
+        try:
+            translated_text = GoogleTranslator(source='auto', target=target_lang).translate(text)
+        except Exception as e:
+            print("⚠️ Deep-translator failed, fallback to safe chunk translation:", e)
+            translated_text = ""
+            for chunk in [text[i:i+3000] for i in range(0, len(text), 3000)]:
+                try:
+                    translated_chunk = GoogleTranslator(source='auto', target=target_lang).translate(chunk)
+                    translated_text += translated_chunk + "\n"
+                except:
+                    translated_text += chunk + "\n"
 
         # Tạo file mới (giữ cấu trúc theo từng dòng)
         new_doc = Document()
@@ -682,17 +693,25 @@ async def translate_doc(
         s3.upload_file(output_path, BUCKET_NAME, s3_key)
         result_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{s3_key}"
 
-        # Trả về nội dung (phần đầu) và URL tải
+        # # Trả về nội dung (phần đầu) và URL tải
+        # return {
+        #     "status": "success",
+        #     "original_preview": text[:1000],
+        #     "translated_preview": translated_text[:1000],
+        #     "result_url": result_url
+        # }
+        # --- Trả về chuẩn hóa ---
         return {
             "status": "success",
-            "original_preview": text[:1000],
-            "translated_preview": translated_text[:1000],
-            "result_url": result_url
+            "download_url": result_url,
+            "message": f"Dịch thành công ({target_lang.upper()})"
         }
+
     except Exception as e:
         import traceback
         print("❌ Error in /translate-doc:", traceback.format_exc())
-        return {"error": str(e)}
+        # return {"error": str(e)}
+        return {"status": "error", "message": str(e)}
 
 
 @app.post("/upload")

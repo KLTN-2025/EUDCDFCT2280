@@ -80,15 +80,55 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
       var transResp = await translateReq.send();
       var transBody = await transResp.stream.bytesToString();
 
+      // if (transResp.statusCode == 200) {
+      //   var jsonResponse = json.decode(transBody);
+
+      //   // ✅ backend nên trả cả 'translated_text' và 'result_url'
+      //   // setState(() {
+      //   //   _downloadUrl = jsonResponse['result_url'];
+      //   //   _outputStatusText = jsonResponse['translated_text'] ??
+      //   //       "✅ Dịch thành công! (${detectedLang.toUpperCase()} → ${_selectedLanguage.toUpperCase()})";
+      //   // });
+      //   setState(() {
+      //     _downloadUrl = jsonResponse['download_url'] ??
+      //         jsonResponse['result_url'] ??
+      //         jsonResponse['resultUrl'] ??
+      //         jsonResponse['url'];
+      //     _outputStatusText = jsonResponse['translated_text'] ??
+      //         "✅ Dịch thành công! (${detectedLang.toUpperCase()} → ${_selectedLanguage.toUpperCase()})";
+      //   });
+      //   // ignore: avoid_print
+      //   print("✅ Đã nhận URL tải về: $_downloadUrl");
+      // } else {
+      //   setState(() {
+      //     _outputStatusText =
+      //         "❌ Lỗi khi dịch (${transResp.statusCode})\nTừ ${detectedLang.toUpperCase()} → ${_selectedLanguage.toUpperCase()}";
+      //   });
+      // }
       if (transResp.statusCode == 200) {
         var jsonResponse = json.decode(transBody);
 
-        // ✅ backend nên trả cả 'translated_text' và 'result_url'
-        setState(() {
-          _downloadUrl = jsonResponse['result_url'];
-          _outputStatusText = jsonResponse['translated_text'] ??
-              "✅ Dịch thành công! (${detectedLang.toUpperCase()} → ${_selectedLanguage.toUpperCase()})";
-        });
+        _downloadUrl = jsonResponse['download_url'] ??
+            jsonResponse['result_url'] ??
+            jsonResponse['resultUrl'] ??
+            jsonResponse['url'];
+
+        setState(() {}); // 👈 đảm bảo Flutter rebuild để nút tải sáng ngay
+
+        // 🔹 Thêm đoạn kiểm tra này
+        if (jsonResponse['status'] == 'success' && _downloadUrl != null) {
+          setState(() {
+            _outputStatusText =
+                "✅ Dịch thành công! (${detectedLang.toUpperCase()} → ${_selectedLanguage.toUpperCase()})";
+          });
+        } else {
+          setState(() {
+            _outputStatusText = "❌ Lỗi khi dịch file!";
+          });
+        }
+
+        // ignore: avoid_print
+        print("✅ Đã nhận URL tải về: $_downloadUrl");
       } else {
         setState(() {
           _outputStatusText =
@@ -112,7 +152,7 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
     try {
       setState(() => _isLoading = true);
 
-      // 📱 Yêu cầu quyền đúng cách
+      // 📱 Yêu cầu quyền lưu trữ
       var status = await Permission.manageExternalStorage.request();
       if (status.isDenied || status.isPermanentlyDenied) {
         // ignore: use_build_context_synchronously
@@ -123,39 +163,52 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
         return;
       }
 
-      // 📂 Lấy thư mục Download đúng chuẩn Android
-      Directory? directory = Directory('/storage/emulated/0/Download');
-      if (!await directory.exists()) {
-        directory = await getExternalStorageDirectory();
-      }
+      // 📂 Tạo thư mục riêng trong bộ nhớ ngoài
+      Directory? dir = await getExternalStorageDirectory();
+      String appFolder = '${dir!.path}/Ecolive_Translated';
+      await Directory(appFolder).create(recursive: true);
 
+      // 📄 Đặt tên file đầu ra
       String fileName = _uploadedFileName != null
           // ignore: prefer_interpolation_to_compose_strings
           ? _uploadedFileName!.split('.').first + '_translated.docx'
           : 'translated_file.docx';
-      String savePath = '${directory!.path}/$fileName';
+      String savePath = '$appFolder/$fileName';
 
       // ignore: avoid_print
       print("📥 Lưu file tại: $savePath");
 
-      await Dio().download(
-        _downloadUrl!,
-        savePath,
-        onReceiveProgress: (rec, total) {
-          if (total != -1) {
-            // ignore: avoid_print
-            print("⬇️ ${(rec / total * 100).toStringAsFixed(0)}%");
-          }
-        },
-      );
+      // 🔁 Thử tải 3 lần (tránh lỗi file chưa sẵn sàng từ backend)
+      for (int i = 0; i < 3; i++) {
+        try {
+          await Dio().download(
+            _downloadUrl!,
+            savePath,
+            onReceiveProgress: (rec, total) {
+              if (total != -1) {
+                // ignore: avoid_print
+                print("⬇️ ${(rec / total * 100).toStringAsFixed(0)}%");
+              }
+            },
+          );
+          break; // ✅ tải thành công thì thoát
+        } catch (e) {
+          if (i == 2) rethrow; // thử 3 lần rồi mới báo lỗi
+          // ignore: avoid_print
+          print("⚠️ File chưa sẵn sàng, thử lại sau 2s...");
+          await Future.delayed(const Duration(seconds: 2));
+        }
+      }
 
       setState(() => _isLoading = false);
+
+      // ✅ Thông báo thành công
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("✅ File đã tải về: $savePath")),
       );
 
-      // Mở file trực tiếp
+      // 📂 Mở file ngay sau khi tải
       await OpenFilex.open(savePath);
     } catch (e) {
       setState(() => _isLoading = false);
