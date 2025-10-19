@@ -75,36 +75,19 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
       );
       translateReq.files
           .add(await http.MultipartFile.fromPath('file', file.path));
-      translateReq.fields['target_lang'] = _selectedLanguage.toLowerCase();
+      // translateReq.fields['target_lang'] = _selectedLanguage.toLowerCase();
+      String targetLang = _selectedLanguage.toLowerCase();
+      if (targetLang.contains('simplified')) {
+        targetLang = 'chinese'; // zh-CN
+      } else if (targetLang.contains('traditional')) {
+        targetLang = 'chinese_traditional'; // zh-TW
+      }
+
+      translateReq.fields['target_lang'] = targetLang;
 
       var transResp = await translateReq.send();
       var transBody = await transResp.stream.bytesToString();
 
-      // if (transResp.statusCode == 200) {
-      //   var jsonResponse = json.decode(transBody);
-
-      //   // ✅ backend nên trả cả 'translated_text' và 'result_url'
-      //   // setState(() {
-      //   //   _downloadUrl = jsonResponse['result_url'];
-      //   //   _outputStatusText = jsonResponse['translated_text'] ??
-      //   //       "✅ Dịch thành công! (${detectedLang.toUpperCase()} → ${_selectedLanguage.toUpperCase()})";
-      //   // });
-      //   setState(() {
-      //     _downloadUrl = jsonResponse['download_url'] ??
-      //         jsonResponse['result_url'] ??
-      //         jsonResponse['resultUrl'] ??
-      //         jsonResponse['url'];
-      //     _outputStatusText = jsonResponse['translated_text'] ??
-      //         "✅ Dịch thành công! (${detectedLang.toUpperCase()} → ${_selectedLanguage.toUpperCase()})";
-      //   });
-      //   // ignore: avoid_print
-      //   print("✅ Đã nhận URL tải về: $_downloadUrl");
-      // } else {
-      //   setState(() {
-      //     _outputStatusText =
-      //         "❌ Lỗi khi dịch (${transResp.statusCode})\nTừ ${detectedLang.toUpperCase()} → ${_selectedLanguage.toUpperCase()}";
-      //   });
-      // }
       if (transResp.statusCode == 200) {
         var jsonResponse = json.decode(transBody);
 
@@ -285,15 +268,35 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
             const SizedBox(height: 30),
             const Text('Ngôn ngữ mới', style: TextStyle(fontSize: 16)),
             const SizedBox(height: 8),
+            // DropdownButtonFormField<String>(
+            //   value: _selectedLanguage,
+            //   decoration: const InputDecoration(border: OutlineInputBorder()),
+            //   items: const [
+            //     'Korean',
+            //     'Chinese',
+            //     'Japanese',
+            //     'English',
+            //     'French'
+            //   ]
+            //       .map((lang) =>
+            //           DropdownMenuItem(value: lang, child: Text(lang)))
+            //       .toList(),
+            //   onChanged: (String? newValue) {
+            //     setState(() {
+            //       _selectedLanguage = newValue!;
+            //     });
+            //   },
+            // ),
             DropdownButtonFormField<String>(
               value: _selectedLanguage,
               decoration: const InputDecoration(border: OutlineInputBorder()),
               items: const [
                 'Korean',
-                'Chinese',
                 'Japanese',
                 'English',
-                'French'
+                'French',
+                'Chinese (Simplified)',
+                'Chinese (Traditional)',
               ]
                   .map((lang) =>
                       DropdownMenuItem(value: lang, child: Text(lang)))
@@ -304,6 +307,7 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
                 });
               },
             ),
+
             const SizedBox(height: 30),
             const Text('Output', style: TextStyle(fontSize: 16)),
             const SizedBox(height: 8),

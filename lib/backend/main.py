@@ -645,73 +645,147 @@ def get_translator(src_lang="en", tgt_lang="vi"):
     model_name = f"Helsinki-NLP/opus-mt-{src_lang}-{tgt_lang}"
     return pipeline("translation", model=model_name)
 
+# @app.post("/translate-doc")
+# async def translate_doc(
+#     file: UploadFile = File(...),
+#     target_lang: str = Form(...)
+# ):
+#     try:
+#         ext = file.filename.split('.')[-1].lower()
+#         content = file.file.read()
+
+#         # Trích xuất nội dung file
+#         text = ""
+#         if ext == "pdf":
+#             reader = PdfReader(io.BytesIO(content))
+#             text = "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
+#         elif ext == "docx":
+#             doc = Document(io.BytesIO(content))
+#             text = "\n".join([p.text for p in doc.paragraphs])
+#         elif ext == "txt":
+#             text = content.decode("utf-8")
+#         else:
+#             return {"error": "Unsupported file format"}
+
+#         # Dịch nội dung
+#         # translated_text = GoogleTranslator(source='auto', target=target_lang).translate(text)
+#         try:
+#             translated_text = GoogleTranslator(source='auto', target=target_lang).translate(text)
+#         except Exception as e:
+#             print("⚠️ Deep-translator failed, fallback to safe chunk translation:", e)
+#             translated_text = ""
+#             for chunk in [text[i:i+3000] for i in range(0, len(text), 3000)]:
+#                 try:
+#                     translated_chunk = GoogleTranslator(source='auto', target=target_lang).translate(chunk)
+#                     translated_text += translated_chunk + "\n"
+#                 except:
+#                     translated_text += chunk + "\n"
+
+#         # Tạo file mới (giữ cấu trúc theo từng dòng)
+#         new_doc = Document()
+#         for line in translated_text.split("\n"):
+#             new_doc.add_paragraph(line)
+#         output_path = f"/tmp/{uuid.uuid4()}.docx"
+#         new_doc.save(output_path)
+
+#         # Upload lên S3
+#         s3_key = f"results/{uuid.uuid4()}.docx"
+#         s3.upload_file(output_path, BUCKET_NAME, s3_key)
+#         result_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{s3_key}"
+
+#         print("⚙️ target_lang:", target_lang)
+
+#         # --- Trả về chuẩn hóa ---
+#         return {
+#             "status": "success",
+#             "download_url": result_url,
+#             "message": f"Dịch thành công ({target_lang.upper()})"
+#         }
+    
+
+#     except Exception as e:
+#         import traceback
+#         print("❌ Error in /translate-doc:", traceback.format_exc())
+#         return {"status": "error", "message": str(e)}
 @app.post("/translate-doc")
 async def translate_doc(
     file: UploadFile = File(...),
     target_lang: str = Form(...)
 ):
     try:
+        import io, uuid
+        from PyPDF2 import PdfReader
+        from docx import Document
+        from deep_translator import GoogleTranslator
+
         ext = file.filename.split('.')[-1].lower()
         content = file.file.read()
 
-        # Trích xuất nội dung file
+        # --- Chuẩn hóa mã ngôn ngữ ---
+        lang_map = {
+            "chinese": "zh-CN",
+            "zh": "zh-CN",
+            "zh-cn": "zh-CN",
+            "zh_cn": "zh-CN",
+            "cn": "zh-CN",
+            "zh-tw": "zh-TW",
+            "chinese_traditional": "zh-TW"
+        }
+        target_lang = lang_map.get(target_lang.lower(), target_lang)
+        print(f"🎯 Target language sau khi chuẩn hóa: {target_lang}")
+
+        # --- Đọc nội dung file ---
         text = ""
         if ext == "pdf":
             reader = PdfReader(io.BytesIO(content))
-            text = "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
+            text = "\n".join([page.extract_text() or "" for page in reader.pages])
         elif ext == "docx":
             doc = Document(io.BytesIO(content))
             text = "\n".join([p.text for p in doc.paragraphs])
         elif ext == "txt":
-            text = content.decode("utf-8")
+            text = content.decode("utf-8", errors="ignore")
         else:
             return {"error": "Unsupported file format"}
 
-        # Dịch nội dung
-        # translated_text = GoogleTranslator(source='auto', target=target_lang).translate(text)
-        try:
-            translated_text = GoogleTranslator(source='auto', target=target_lang).translate(text)
-        except Exception as e:
-            print("⚠️ Deep-translator failed, fallback to safe chunk translation:", e)
-            translated_text = ""
-            for chunk in [text[i:i+3000] for i in range(0, len(text), 3000)]:
-                try:
-                    translated_chunk = GoogleTranslator(source='auto', target=target_lang).translate(chunk)
-                    translated_text += translated_chunk + "\n"
-                except:
-                    translated_text += chunk + "\n"
+        if not text.strip():
+            return {"error": "File không có nội dung để dịch."}
 
-        # Tạo file mới (giữ cấu trúc theo từng dòng)
+        # --- Dịch nội dung theo từng đoạn (tránh vượt giới hạn Google) ---
+        translator = GoogleTranslator(source='auto', target=target_lang)
+        chunks = [text[i:i+4000] for i in range(0, len(text), 4000)]
+        translated_text = ""
+        for i, chunk in enumerate(chunks):
+            try:
+                translated_chunk = translator.translate(chunk)
+                translated_text += translated_chunk + "\n"
+            except Exception as e:
+                print(f"⚠️ Dịch lỗi đoạn {i}: {e}")
+                translated_text += chunk + "\n"
+
+        # --- Lưu file kết quả ---
         new_doc = Document()
         for line in translated_text.split("\n"):
-            new_doc.add_paragraph(line)
+            new_doc.add_paragraph(line.strip())
         output_path = f"/tmp/{uuid.uuid4()}.docx"
         new_doc.save(output_path)
 
-        # Upload lên S3
+        # --- Upload lên S3 ---
         s3_key = f"results/{uuid.uuid4()}.docx"
         s3.upload_file(output_path, BUCKET_NAME, s3_key)
         result_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{s3_key}"
 
-        # # Trả về nội dung (phần đầu) và URL tải
-        # return {
-        #     "status": "success",
-        #     "original_preview": text[:1000],
-        #     "translated_preview": translated_text[:1000],
-        #     "result_url": result_url
-        # }
-        # --- Trả về chuẩn hóa ---
+        # --- Trả về ---
         return {
             "status": "success",
-            "download_url": result_url,
-            "message": f"Dịch thành công ({target_lang.upper()})"
+            "original_preview": text[:1000],
+            "translated_preview": translated_text[:1000],
+            "result_url": result_url
         }
 
     except Exception as e:
         import traceback
         print("❌ Error in /translate-doc:", traceback.format_exc())
-        # return {"error": str(e)}
-        return {"status": "error", "message": str(e)}
+        return {"error": str(e)}
 
 
 @app.post("/upload")
@@ -870,36 +944,6 @@ async def detect_language(file: UploadFile = File(...)):
         return {"detected_lang": detected}
     except Exception as e:
         return {"error": str(e)}
-    
-# @app.post("/detect-language")
-# async def detect_language(file: UploadFile = File(...)):
-#     """Phát hiện ngôn ngữ chính của file PDF hoặc DOCX"""
-#     tmp_path = save_temp_file(file)
-#     try:
-#         text = ""
-#         ext = tmp_path.lower().rsplit(".", 1)[-1]
-#         if ext == "pdf":
-#             doc = fitz.open(tmp_path)
-#             for page in doc:
-#                 text += page.get_text("text")
-#         elif ext == "docx":
-#             doc = Document(tmp_path)
-#             for p in doc.paragraphs:
-#                 text += p.text + "\n"
-#         else:
-#             raise HTTPException(status_code=400, detail="Unsupported file format")
-
-#         lang = detect(text[:5000])  # lấy 5000 ký tự đầu
-#         logger.info(f"🌐 Ngôn ngữ phát hiện: {lang}")
-#         return JSONResponse({"language": lang})
-#     except Exception as e:
-#         logger.error(f"❌ Detect language error: {e}")
-#         raise HTTPException(status_code=500, detail=str(e))
-#     finally:
-#         try:
-#             os.remove(tmp_path)
-#         except:
-#             pass
 
 if __name__ == "__main__":
     import uvicorn
