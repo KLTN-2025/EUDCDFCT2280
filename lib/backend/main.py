@@ -35,6 +35,8 @@ from deep_translator import GoogleTranslator
 import mimetypes
 from transformers import pipeline
 import tempfile, boto3, os
+from PyPDF2 import PdfReader
+import io, boto3, uuid
 
 # 🟢 Cấu hình log chi tiết
 logging.basicConfig(
@@ -634,6 +636,9 @@ def ensure_font_available(font_name: str) -> str:
         return "HeiseiMin-W3"
     except:
         return DEFAULT_FALLBACK_FONT
+    
+s3 = boto3.client('s3')
+BUCKET_NAME = "my-ecolive-storage"
 
 # --- HUGGINGFACE TRANSLATOR ---
 def get_translator(src_lang="en", tgt_lang="vi"):
@@ -641,140 +646,54 @@ def get_translator(src_lang="en", tgt_lang="vi"):
     return pipeline("translation", model=model_name)
 
 @app.post("/translate-doc")
-async def translate_doc(file: UploadFile = File(...), target_lang: str = Form(...)):
-    """
-    Nhận file DOCX hoặc PDF → phát hiện ngôn ngữ → dịch toàn văn bản → 
-    xuất DOCX mới giữ nguyên cấu trúc gốc (heading, spacing).
-    """
+async def translate_doc(
+    file: UploadFile = File(...),
+    target_lang: str = Form(...)
+):
     try:
-        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=f"_{file.filename}")
-        temp_input.write(await file.read())
-        temp_input.close()
+        ext = file.filename.split('.')[-1].lower()
+        content = file.file.read()
 
-        # 📘 Chỉ hỗ trợ .docx hoặc .txt
-        if not file.filename.endswith(".docx"):
-            return JSONResponse(status_code=400, content={"error": "Chỉ hỗ trợ file .docx"})
+        # Trích xuất nội dung file
+        text = ""
+        if ext == "pdf":
+            reader = PdfReader(io.BytesIO(content))
+            text = "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
+        elif ext == "docx":
+            doc = Document(io.BytesIO(content))
+            text = "\n".join([p.text for p in doc.paragraphs])
+        elif ext == "txt":
+            text = content.decode("utf-8")
+        else:
+            return {"error": "Unsupported file format"}
 
-        # Đọc DOCX gốc
-        doc = Document(temp_input.name)
-        translated_doc = Document()
+        # Dịch nội dung
+        translated_text = GoogleTranslator(source='auto', target=target_lang).translate(text)
 
-        # Tự phát hiện ngôn ngữ nguồn
-        all_text = " ".join(p.text for p in doc.paragraphs if p.text.strip())
-        src_lang = detect(all_text[:3000])
-        print(f"🔍 Phát hiện ngôn ngữ nguồn: {src_lang}")
+        # Tạo file mới (giữ cấu trúc theo từng dòng)
+        new_doc = Document()
+        for line in translated_text.split("\n"):
+            new_doc.add_paragraph(line)
+        output_path = f"/tmp/{uuid.uuid4()}.docx"
+        new_doc.save(output_path)
 
-        translator = GoogleTranslator(source=src_lang, target=target_lang)
+        # Upload lên S3
+        s3_key = f"results/{uuid.uuid4()}.docx"
+        s3.upload_file(output_path, BUCKET_NAME, s3_key)
+        result_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{s3_key}"
 
-        for para in doc.paragraphs:
-            new_para = translated_doc.add_paragraph()
-            for run in para.runs:
-                translated_text = translator.translate(run.text)
-                new_run = new_para.add_run(translated_text)
-
-                # ⚙️ Giữ định dạng (in đậm, nghiêng, gạch chân, font size)
-                new_run.bold = run.bold
-                new_run.italic = run.italic
-                new_run.underline = run.underline
-                if run.font.size:
-                    new_run.font.size = run.font.size
-                if run.font.name:
-                    new_run.font.name = run.font.name
-
-        # 🧾 Lưu file đã dịch
-        temp_output = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
-        translated_doc.save(temp_output.name)
-        temp_output.close()
-
-        # 🪣 Upload lên S3
-        s3_key = f"translated/{os.path.basename(temp_output.name)}"
-        s3_client.upload_file(temp_output.name, S3_BUCKET, s3_key)
-        s3_url = f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{s3_key}"
-
-        # 🪞 Preview đoạn đầu
-        preview_text = "\n".join([p.text for p in translated_doc.paragraphs[:3]])
-
-        return JSONResponse({
+        # Trả về nội dung (phần đầu) và URL tải
+        return {
             "status": "success",
-            "result_url": s3_url,
-            "translated_preview": preview_text
-        })
-
+            "original_preview": text[:1000],
+            "translated_preview": translated_text[:1000],
+            "result_url": result_url
+        }
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        import traceback
+        print("❌ Error in /translate-doc:", traceback.format_exc())
+        return {"error": str(e)}
 
-    finally:
-        if os.path.exists(temp_input.name):
-            os.remove(temp_input.name)
-        if "temp_output" in locals() and os.path.exists(temp_output.name):
-            os.remove(temp_output.name)
-
-# @app.post("/translate-doc")
-# async def translate_doc(file: UploadFile, target_lang: str = Form(...)):
-#     """
-#     Nhận file DOCX hoặc PDF → dịch → lưu file dịch lên S3 → trả về link tải + preview.
-#     """
-#     try:
-#         # Tạo file tạm
-#         temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=f"_{file.filename}")
-#         temp_input.write(await file.read())
-#         temp_input.close()
-
-#         # Kiểm tra định dạng file
-#         if not (file.filename.endswith(".docx") or file.filename.endswith(".txt")):
-#             return JSONResponse(status_code=400, content={"error": "Chỉ hỗ trợ file .docx hoặc .txt"})
-
-#         # Đọc nội dung văn bản
-#         if file.filename.endswith(".docx"):
-#             doc = Document(temp_input.name)
-#             paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
-#         else:
-#             with open(temp_input.name, "r", encoding="utf-8") as f:
-#                 paragraphs = [line.strip() for line in f.readlines() if line.strip()]
-
-#         if not paragraphs:
-#             return JSONResponse(status_code=400, content={"error": "Không tìm thấy nội dung văn bản"})
-
-#         # Dùng pipeline dịch (tự phát hiện hướng ngôn ngữ)
-#         translator = pipeline("translation", model="Helsinki-NLP/opus-mt-mul-en")
-
-#         translated_paragraphs = []
-#         for p in paragraphs:
-#             result = translator(p, max_length=512)[0]["translation_text"]
-#             translated_paragraphs.append(result)
-
-#         # Tạo file dịch DOCX
-#         translated_doc = Document()
-#         for p in translated_paragraphs:
-#             translated_doc.add_paragraph(p)
-
-#         temp_output = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
-#         translated_doc.save(temp_output.name)
-#         temp_output.close()
-
-#         # Upload lên S3
-#         s3_key = f"translated/{os.path.basename(temp_output.name)}"
-#         s3_client.upload_file(temp_output.name, S3_BUCKET, s3_key)
-#         s3_url = f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{s3_key}"
-
-#         # Preview: lấy 1 đoạn đầu tiên
-#         preview_text = " ".join(translated_paragraphs[:3])
-
-#         return JSONResponse(content={
-#             "status": "success",
-#             "result_url": s3_url,
-#             "translated_preview": preview_text
-#         })
-
-#     except Exception as e:
-#         return JSONResponse(status_code=500, content={"error": str(e)})
-
-#     finally:
-#         # Xóa file tạm để tránh đầy bộ nhớ
-#         if os.path.exists(temp_input.name):
-#             os.remove(temp_input.name)
-#         if "temp_output" in locals() and os.path.exists(temp_output.name):
-#             os.remove(temp_output.name)
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -906,34 +825,62 @@ def home():
 # ===========================================================
 # 🔹 Chạy local (debug)
 # ===========================================================
+def extract_text(file: UploadFile):
+    ext = file.filename.split('.')[-1].lower()
+    content = file.file.read()
+
+    if ext == "pdf":
+        reader = PdfReader(io.BytesIO(content))
+        return "\n".join([page.extract_text() for page in reader.pages])
+    elif ext == "docx":
+        doc = Document(io.BytesIO(content))
+        return "\n".join([para.text for para in doc.paragraphs])
+    elif ext == "txt":
+        return content.decode("utf-8")
+    else:
+        raise ValueError("Unsupported file format")
+
 @app.post("/detect-language")
 async def detect_language(file: UploadFile = File(...)):
-    """
-    Tự động phát hiện ngôn ngữ trong file được tải lên.
-    """
     try:
-        content = await file.read()
+        text = extract_text(file)
+        if not text.strip():
+            return {"detected_lang": "unknown"}
 
-        # Giải mã nội dung file (thử nhiều kiểu)
-        text = None
-        for enc in ["utf-8", "latin-1", "utf-16"]:
-            try:
-                text = content.decode(enc)
-                break
-            except Exception:
-                continue
-
-        if not text:
-            raise HTTPException(status_code=400, detail="Không đọc được nội dung file.")
-
-        # Giới hạn độ dài để phát hiện nhanh
-        snippet = text[:3000]
-        detected_lang = detect(snippet)
-
-        return {"detected_lang": detected_lang}
-
+        detected = detect(text)
+        return {"detected_lang": detected}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi phát hiện ngôn ngữ: {str(e)}")
+        return {"error": str(e)}
+    
+# @app.post("/detect-language")
+# async def detect_language(file: UploadFile = File(...)):
+#     """Phát hiện ngôn ngữ chính của file PDF hoặc DOCX"""
+#     tmp_path = save_temp_file(file)
+#     try:
+#         text = ""
+#         ext = tmp_path.lower().rsplit(".", 1)[-1]
+#         if ext == "pdf":
+#             doc = fitz.open(tmp_path)
+#             for page in doc:
+#                 text += page.get_text("text")
+#         elif ext == "docx":
+#             doc = Document(tmp_path)
+#             for p in doc.paragraphs:
+#                 text += p.text + "\n"
+#         else:
+#             raise HTTPException(status_code=400, detail="Unsupported file format")
+
+#         lang = detect(text[:5000])  # lấy 5000 ký tự đầu
+#         logger.info(f"🌐 Ngôn ngữ phát hiện: {lang}")
+#         return JSONResponse({"language": lang})
+#     except Exception as e:
+#         logger.error(f"❌ Detect language error: {e}")
+#         raise HTTPException(status_code=500, detail=str(e))
+#     finally:
+#         try:
+#             os.remove(tmp_path)
+#         except:
+#             pass
 
 if __name__ == "__main__":
     import uvicorn

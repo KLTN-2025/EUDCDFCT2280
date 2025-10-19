@@ -106,62 +106,6 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
     }
   }
 
-  // Future<void> _downloadFile() async {
-  //   if (_downloadUrl == null) return;
-
-  //   try {
-  //     if (await Permission.storage.request().isGranted) {
-  //       Directory? directory;
-
-  //       if (Platform.isAndroid) {
-  //         directory = Directory('/storage/emulated/0/Download');
-  //         if (!await directory.exists()) {
-  //           directory = await getExternalStorageDirectory();
-  //         }
-  //       } else {
-  //         directory = await getApplicationDocumentsDirectory();
-  //       }
-
-  //       String filename = _uploadedFileName != null
-  //           // ignore: prefer_interpolation_to_compose_strings
-  //           ? _uploadedFileName!.split('.').first + '_translated.docx'
-  //           : 'translated_file.docx';
-  //       String savePath = '${directory!.path}/$filename';
-
-  //       // ignore: avoid_print
-  //       print("📥 Đang tải về: $savePath");
-
-  //       await Dio().download(
-  //         _downloadUrl!,
-  //         savePath,
-  //         onReceiveProgress: (received, total) {
-  //           if (total != -1) {
-  //             // ignore: avoid_print
-  //             print("📦 ${(received / total * 100).toStringAsFixed(0)}%");
-  //           }
-  //         },
-  //       );
-
-  //       // ignore: use_build_context_synchronously
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(content: Text("✅ Đã tải về: $savePath")),
-  //       );
-
-  //       await OpenFilex.open(savePath);
-  //     } else {
-  //       await Permission.storage.request();
-  //       // ignore: use_build_context_synchronously
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         const SnackBar(content: Text("⚠️ Không có quyền truy cập bộ nhớ!")),
-  //       );
-  //     }
-  //   } catch (e) {
-  //     // ignore: use_build_context_synchronously
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(content: Text("❌ Lỗi khi tải: $e")),
-  //     );
-  //   }
-  // }
   Future<void> _downloadFile() async {
     if (_downloadUrl == null) return;
 
