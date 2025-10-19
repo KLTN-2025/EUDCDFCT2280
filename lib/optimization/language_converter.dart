@@ -39,6 +39,7 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
         _uploadedFileName = result.files.single.name;
         _outputStatusText = "🔍 Đang phát hiện ngôn ngữ...";
         _isLoading = true;
+        _downloadUrl = null; // 👈 thêm dòng này
       });
 
       // 1️⃣ Gửi file phát hiện ngôn ngữ
@@ -223,134 +224,271 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
     );
   }
 
+  // @override
+  // Widget build(BuildContext context) {
+  //   return Scaffold(
+  //     appBar: AppBar(title: const Text('LANGUAGE TO LANGUAGE')),
+  //     body: Padding(
+  //       padding: const EdgeInsets.all(20.0),
+  //       child: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.stretch,
+  //         children: [
+  //           GestureDetector(
+  //             onTap: _pickAndUploadFile,
+  //             child: Container(
+  //               height: 150,
+  //               decoration: BoxDecoration(
+  //                 color: Colors.grey[200],
+  //                 borderRadius: BorderRadius.circular(15),
+  //               ),
+  //               child: Center(
+  //                 child: _isLoading
+  //                     ? const CircularProgressIndicator()
+  //                     : const Column(
+  //                         mainAxisAlignment: MainAxisAlignment.center,
+  //                         children: [
+  //                           Icon(Icons.cloud_upload,
+  //                               size: 50, color: Colors.grey),
+  //                           SizedBox(height: 10),
+  //                           Text('UPLOAD FILE',
+  //                               style: TextStyle(color: Colors.grey)),
+  //                         ],
+  //                       ),
+  //               ),
+  //             ),
+  //           ),
+  //           if (_uploadedFileName != null)
+  //             Padding(
+  //               padding: const EdgeInsets.only(top: 10),
+  //               child: Text(
+  //                 "📄 File đã chọn: $_uploadedFileName",
+  //                 style: const TextStyle(fontSize: 14, color: Colors.black54),
+  //                 textAlign: TextAlign.center,
+  //               ),
+  //             ),
+  //           const SizedBox(height: 30),
+  //           const Text('Ngôn ngữ mới', style: TextStyle(fontSize: 16)),
+  //           const SizedBox(height: 8),
+  //           // DropdownButtonFormField<String>(
+  //           //   value: _selectedLanguage,
+  //           //   decoration: const InputDecoration(border: OutlineInputBorder()),
+  //           //   items: const [
+  //           //     'Korean',
+  //           //     'Chinese',
+  //           //     'Japanese',
+  //           //     'English',
+  //           //     'French'
+  //           //   ]
+  //           //       .map((lang) =>
+  //           //           DropdownMenuItem(value: lang, child: Text(lang)))
+  //           //       .toList(),
+  //           //   onChanged: (String? newValue) {
+  //           //     setState(() {
+  //           //       _selectedLanguage = newValue!;
+  //           //     });
+  //           //   },
+  //           // ),
+  //           DropdownButtonFormField<String>(
+  //             value: _selectedLanguage,
+  //             decoration: const InputDecoration(border: OutlineInputBorder()),
+  //             items: const [
+  //               'Korean',
+  //               'Japanese',
+  //               'English',
+  //               'French',
+  //               'Chinese (Simplified)',
+  //               'Chinese (Traditional)',
+  //             ]
+  //                 .map((lang) =>
+  //                     DropdownMenuItem(value: lang, child: Text(lang)))
+  //                 .toList(),
+  //             onChanged: (String? newValue) {
+  //               setState(() {
+  //                 _selectedLanguage = newValue!;
+  //               });
+  //             },
+  //           ),
+
+  //           const SizedBox(height: 30),
+  //           const Text('Output', style: TextStyle(fontSize: 16)),
+  //           const SizedBox(height: 8),
+  //           GestureDetector(
+  //             onTap: _showFullText,
+  //             child: Container(
+  //               height: 120,
+  //               decoration: BoxDecoration(
+  //                 color: Colors.grey[200],
+  //                 borderRadius: BorderRadius.circular(15),
+  //               ),
+  //               child: SingleChildScrollView(
+  //                 padding: const EdgeInsets.all(10),
+  //                 child: Text(
+  //                   _outputStatusText,
+  //                   style: const TextStyle(color: Colors.black87),
+  //                   textAlign: TextAlign.left,
+  //                 ),
+  //               ),
+  //             ),
+  //           ),
+  //           const SizedBox(height: 40),
+  //           Column(
+  //             children: [
+  //               InkWell(
+  //                 onTap: _downloadUrl != null ? _downloadFile : null,
+  //                 borderRadius: BorderRadius.circular(50),
+  //                 child: Container(
+  //                   padding: const EdgeInsets.all(15),
+  //                   decoration: BoxDecoration(
+  //                     shape: BoxShape.circle,
+  //                     color:
+  //                         _downloadUrl != null ? Colors.blue[600] : Colors.grey,
+  //                   ),
+  //                   child: const Icon(Icons.download,
+  //                       color: Colors.white, size: 30),
+  //                 ),
+  //               ),
+  //               const SizedBox(height: 5),
+  //               const Text('Tải về', style: TextStyle(color: Colors.blue)),
+  //             ],
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('LANGUAGE TO LANGUAGE')),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            GestureDetector(
-              onTap: _pickAndUploadFile,
-              child: Container(
-                height: 150,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Center(
-                  child: _isLoading
-                      ? const CircularProgressIndicator()
-                      : const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.cloud_upload,
-                                size: 50, color: Colors.grey),
-                            SizedBox(height: 10),
-                            Text('UPLOAD FILE',
-                                style: TextStyle(color: Colors.grey)),
-                          ],
-                        ),
-                ),
+    return WillPopScope(
+      onWillPop: () async {
+        if (_isLoading) {
+          // 🔒 Khi đang chuyển đổi → chặn thoát và hiện cảnh báo
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text("Không thể thoát"),
+              content: const Text(
+                "Đang trong quá trình chuyển đổi. Vui lòng chờ hoàn tất trước khi quay lại.",
               ),
-            ),
-            if (_uploadedFileName != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Text(
-                  "📄 File đã chọn: $_uploadedFileName",
-                  style: const TextStyle(fontSize: 14, color: Colors.black54),
-                  textAlign: TextAlign.center,
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("OK"),
                 ),
-              ),
-            const SizedBox(height: 30),
-            const Text('Ngôn ngữ mới', style: TextStyle(fontSize: 16)),
-            const SizedBox(height: 8),
-            // DropdownButtonFormField<String>(
-            //   value: _selectedLanguage,
-            //   decoration: const InputDecoration(border: OutlineInputBorder()),
-            //   items: const [
-            //     'Korean',
-            //     'Chinese',
-            //     'Japanese',
-            //     'English',
-            //     'French'
-            //   ]
-            //       .map((lang) =>
-            //           DropdownMenuItem(value: lang, child: Text(lang)))
-            //       .toList(),
-            //   onChanged: (String? newValue) {
-            //     setState(() {
-            //       _selectedLanguage = newValue!;
-            //     });
-            //   },
-            // ),
-            DropdownButtonFormField<String>(
-              value: _selectedLanguage,
-              decoration: const InputDecoration(border: OutlineInputBorder()),
-              items: const [
-                'Korean',
-                'Japanese',
-                'English',
-                'French',
-                'Chinese (Simplified)',
-                'Chinese (Traditional)',
-              ]
-                  .map((lang) =>
-                      DropdownMenuItem(value: lang, child: Text(lang)))
-                  .toList(),
-              onChanged: (String? newValue) {
-                setState(() {
-                  _selectedLanguage = newValue!;
-                });
-              },
-            ),
-
-            const SizedBox(height: 30),
-            const Text('Output', style: TextStyle(fontSize: 16)),
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: _showFullText,
-              child: Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(10),
-                  child: Text(
-                    _outputStatusText,
-                    style: const TextStyle(color: Colors.black87),
-                    textAlign: TextAlign.left,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 40),
-            Column(
-              children: [
-                InkWell(
-                  onTap: _downloadUrl != null ? _downloadFile : null,
-                  borderRadius: BorderRadius.circular(50),
-                  child: Container(
-                    padding: const EdgeInsets.all(15),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color:
-                          _downloadUrl != null ? Colors.blue[600] : Colors.grey,
-                    ),
-                    child: const Icon(Icons.download,
-                        color: Colors.white, size: 30),
-                  ),
-                ),
-                const SizedBox(height: 5),
-                const Text('Tải về', style: TextStyle(color: Colors.blue)),
               ],
             ),
-          ],
+          );
+          return false; // ❌ Không cho phép thoát
+        }
+        return true; // ✅ Cho phép thoát khi không còn chuyển đổi
+      },
+      child: Scaffold(
+        appBar: AppBar(title: const Text('LANGUAGE TO LANGUAGE')),
+        body: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              GestureDetector(
+                onTap: _pickAndUploadFile,
+                child: Container(
+                  height: 150,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Center(
+                    child: _isLoading
+                        ? const CircularProgressIndicator()
+                        : const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.cloud_upload,
+                                  size: 50, color: Colors.grey),
+                              SizedBox(height: 10),
+                              Text('UPLOAD FILE',
+                                  style: TextStyle(color: Colors.grey)),
+                            ],
+                          ),
+                  ),
+                ),
+              ),
+              if (_uploadedFileName != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text(
+                    "📄 File đã chọn: $_uploadedFileName",
+                    style: const TextStyle(fontSize: 14, color: Colors.black54),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              const SizedBox(height: 30),
+              const Text('Ngôn ngữ mới', style: TextStyle(fontSize: 16)),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: _selectedLanguage,
+                decoration: const InputDecoration(border: OutlineInputBorder()),
+                items: const [
+                  'Korean',
+                  'Japanese',
+                  'English',
+                  'French',
+                  'Chinese (Simplified)',
+                  'Chinese (Traditional)',
+                ]
+                    .map((lang) =>
+                        DropdownMenuItem(value: lang, child: Text(lang)))
+                    .toList(),
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _selectedLanguage = newValue!;
+                  });
+                },
+              ),
+              const SizedBox(height: 30),
+              const Text('Output', style: TextStyle(fontSize: 16)),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _showFullText,
+                child: Container(
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(10),
+                    child: Text(
+                      _outputStatusText,
+                      style: const TextStyle(color: Colors.black87),
+                      textAlign: TextAlign.left,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
+              Column(
+                children: [
+                  InkWell(
+                    onTap: _downloadUrl != null ? _downloadFile : null,
+                    borderRadius: BorderRadius.circular(50),
+                    child: Container(
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _downloadUrl != null
+                            ? Colors.blue[600]
+                            : Colors.grey,
+                      ),
+                      child: const Icon(Icons.download,
+                          color: Colors.white, size: 30),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  const Text('Tải về', style: TextStyle(color: Colors.blue)),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
