@@ -36,7 +36,7 @@ class _TranslateHistoryScreenState extends State<TranslateHistoryScreen> {
     try {
       final baseUrl = widget.apiBaseUrl.startsWith('http')
           ? widget.apiBaseUrl
-          : 'http://${widget.apiBaseUrl}';
+          : 'https://${widget.apiBaseUrl}';
       final url =
           Uri.parse('$baseUrl/get-translate-history?user_id=${widget.userId}');
       final response = await http.get(url);

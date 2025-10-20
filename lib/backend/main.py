@@ -885,16 +885,19 @@ async def get_translate_history(user_id: str):
                 status_code=400,
                 content={"status": "error", "message": "Thiếu user_id trong request."}
             )
+        
+        from google.cloud import firestore
+        db = firestore.Client()
 
         user_ref = db.collection("users").document(user_id)
         history_ref = user_ref.collection("translate_history")
 
-        docs = history_ref.order_by(
+        history_docs = history_ref.order_by(
             "timestamp", direction=firestore.Query.DESCENDING
         ).stream()
 
         history_list = []
-        for doc in docs:
+        for doc in history_docs:
             data = doc.to_dict() or {}
             ts = data.get("timestamp")
             history_list.append({
@@ -902,7 +905,7 @@ async def get_translate_history(user_id: str):
                 "original_filename": data.get("original_filename", "Không có tên"),
                 "source_lang": data.get("source_lang", "auto"),
                 "target_lang": data.get("target_lang", "unknown"),
-                "result_url": data.get("result_url", None),
+                "result_url": data.get("result_url"),
                 "timestamp": ts.isoformat() if ts else None,
             })
 

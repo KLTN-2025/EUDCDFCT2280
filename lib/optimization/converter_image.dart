@@ -44,7 +44,7 @@ class _FileConverterImageScreenState extends State<FileConverterImageScreen> {
       _imageUrls.clear();
     });
 
-    try {
+    try { 
       // 🟢 Lấy IP động từ backend
       const serverUrl = "https://ecolive-font-converter.onrender.com";
       final userId = FirebaseAuth.instance.currentUser?.uid ?? "anonymous_user";
