@@ -273,7 +273,7 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => TranslateHistoryScreen(
-                      userId: user.uid,
+                      userId: user.uid, // ✅ user id thật
                       apiBaseUrl: "https://ecolive-font-converter.onrender.com",
                     ),
                   ),

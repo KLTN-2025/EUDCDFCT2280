@@ -19,7 +19,7 @@ class TranslateHistoryScreen extends StatefulWidget {
 
   @override
   State<TranslateHistoryScreen> createState() => _TranslateHistoryScreenState();
-}
+} 
 
 class _TranslateHistoryScreenState extends State<TranslateHistoryScreen> {
   List<dynamic> _historyList = [];
@@ -73,7 +73,7 @@ class _TranslateHistoryScreenState extends State<TranslateHistoryScreen> {
     }
   }
 
-  Future<void> _downloadTranslatedFile(String url, String filename) async {
+  Future<File?> _downloadTranslatedFile(String url, String filename) async {
     try {
       final status = await Permission.storage.request();
       if (!status.isGranted) {
@@ -81,7 +81,7 @@ class _TranslateHistoryScreenState extends State<TranslateHistoryScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('⚠️ Cần quyền lưu file')),
         );
-        return;
+        return null;
       }
 
       // ignore: use_build_context_synchronously
@@ -95,32 +95,230 @@ class _TranslateHistoryScreenState extends State<TranslateHistoryScreen> {
         final directory = await getExternalStorageDirectory();
         final file = File('${directory!.path}/$filename');
         await file.writeAsBytes(bytes);
-
-        // ignore: use_build_context_synchronously
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ Đã lưu file: $filename'),
-            action: SnackBarAction(
-              label: 'Mở',
-              onPressed: () {
-                OpenFilex.open(file.path);
-              },
-            ),
-          ),
-        );
+        return file;
       } else {
         // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('❌ Không thể tải file (${response.statusCode})')),
+            content: Text('❌ Không thể tải file (${response.statusCode})'),
+          ),
         );
+        return null;
       }
     } catch (e) {
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('⚠️ Lỗi tải file: $e')),
       );
+      return null;
     }
+  }
+
+  Future<int> _downloadAllTranslatedFilesInList(
+    void Function(void Function()) setStateDialog,
+  ) async {
+    if (_historyList.isEmpty) return 0;
+
+    final perm = await Permission.storage.request();
+    if (!perm.isGranted) {
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('⚠️ Cần quyền lưu file')),
+      );
+      return 0;
+    }
+
+    // thông báo bắt đầu
+    // ignore: use_build_context_synchronously
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('⏳ Đang tải tất cả file...')),
+    );
+
+    final dir = await getExternalStorageDirectory();
+    final folderPath = '${dir!.path}/TranslatedFiles';
+    final folder = Directory(folderPath);
+    if (!await folder.exists()) await folder.create(recursive: true);
+
+    int success = 0;
+    for (int i = 0; i < _historyList.length; i++) {
+      final item = _historyList[i];
+      final url = item['result_url'];
+      final filename = item['original_filename'] ??
+          'translated_${DateTime.now().millisecondsSinceEpoch}.docx';
+
+      // cập nhật tiến trình dialog (nếu có)
+      setStateDialog(() {});
+
+      if (url == null) continue;
+
+      try {
+        final resp = await http.get(Uri.parse(url));
+        if (resp.statusCode == 200) {
+          final file = File('$folderPath/$filename');
+          await file.writeAsBytes(resp.bodyBytes);
+          success++;
+        }
+      } catch (_) {
+        // bỏ qua lỗi 1 file, tiếp tục các file khác
+      }
+    }
+
+    return success;
+  }
+
+  void _showTranslatePreview(
+    BuildContext rootContext,
+    Map<String, dynamic> item,
+  ) {
+    final filename = item['original_filename'] ?? 'Không có tên';
+    final source = item['source_lang'] ?? 'auto';
+    final target = item['target_lang'] ?? 'unknown';
+    final fileUrl = item['result_url'];
+    final time = _formatTimestamp(item['timestamp']);
+
+    showModalBottomSheet(
+      context: rootContext,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        bool isDownloading = false;
+        bool isDownloaded = false;
+        bool isDownloadingAll = false;
+        File? downloadedFile;
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Center(
+              child: FractionallySizedBox(
+                heightFactor: 0.55,
+                widthFactor: 0.95,
+                child: Material(
+                  color: Colors.white,
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          "Bản dịch: ${source.toUpperCase()} → ${target.toUpperCase()}",
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 18),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text("📄 $filename"),
+                        Text("⏱ $time",
+                            style: const TextStyle(
+                                color: Colors.grey, fontSize: 13)),
+                        const SizedBox(height: 16),
+
+                        // nút tải file hiện tại
+                        if (isDownloading)
+                          const Column(
+                            children: [
+                              CircularProgressIndicator(),
+                              SizedBox(height: 8),
+                              Text("⏳ Đang tải file..."),
+                            ],
+                          )
+                        else if (isDownloaded && downloadedFile != null)
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              OpenFilex.open(downloadedFile!.path);
+                            },
+                            icon: const Icon(Icons.open_in_new_rounded),
+                            label: const Text("📂 Mở file"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                            ),
+                          )
+                        else
+                          ElevatedButton.icon(
+                            onPressed: fileUrl != null
+                                ? () async {
+                                    setState(() => isDownloading = true);
+                                    final file = await _downloadTranslatedFile(
+                                        fileUrl, filename);
+                                    setState(() {
+                                      isDownloading = false;
+                                      if (file != null) {
+                                        isDownloaded = true;
+                                        downloadedFile = file;
+                                      }
+                                    });
+                                  }
+                                : null,
+                            icon: const Icon(Icons.download_rounded),
+                            label: const Text("Tải file dịch"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+
+                        const SizedBox(height: 12),
+
+                        // NÚT: Tải tất cả file trong lịch sử (ở trong dialog)
+                        if (isDownloadingAll)
+                          const Column(
+                            children: [
+                              CircularProgressIndicator(),
+                              SizedBox(height: 8),
+                              Text("⏳ Đang tải tất cả file..."),
+                            ],
+                          )
+                        else
+                          ElevatedButton.icon(
+                            onPressed: () async {
+                              // bắt đầu tải tất cả
+                              setState(() {
+                                isDownloadingAll = true;
+                              });
+
+                              final success =
+                                  await _downloadAllTranslatedFilesInList(
+                                      setState);
+
+                              setState(() {
+                                isDownloadingAll = false;
+                              });
+
+                              // thông báo kết quả
+                              // ignore: use_build_context_synchronously
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: Text('✅ Đã tải $success file')),
+                              );
+                            },
+                            icon:
+                                const Icon(Icons.download_for_offline_rounded),
+                            label: const Text("Tải tất cả file trong lịch sử"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+
+                        const Spacer(),
+
+                        TextButton.icon(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close),
+                          label: const Text("Đóng"),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -150,7 +348,6 @@ class _TranslateHistoryScreenState extends State<TranslateHistoryScreen> {
                         final timestamp = _formatTimestamp(item['timestamp']);
                         final source = item['source_lang'] ?? 'auto';
                         final target = item['target_lang'] ?? 'unknown';
-                        final fileUrl = item['result_url'];
 
                         return Card(
                           elevation: 3,
@@ -159,8 +356,8 @@ class _TranslateHistoryScreenState extends State<TranslateHistoryScreen> {
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                           child: ListTile(
-                            leading: const Icon(Icons.translate_rounded,
-                                color: Colors.blue, size: 40),
+                            leading: const Icon(Icons.description_rounded,
+                                color: Colors.blue, size: 45),
                             title: Text(
                               "Dịch: ${source.toUpperCase()} → ${target.toUpperCase()}",
                               style:
@@ -176,12 +373,10 @@ class _TranslateHistoryScreenState extends State<TranslateHistoryScreen> {
                               ],
                             ),
                             trailing: IconButton(
-                              icon: const Icon(Icons.download_rounded,
-                                  color: Colors.green),
-                              onPressed: fileUrl != null
-                                  ? () =>
-                                      _downloadTranslatedFile(fileUrl, filename)
-                                  : null,
+                              icon: const Icon(Icons.arrow_forward_ios,
+                                  size: 18, color: Colors.blue),
+                              onPressed: () =>
+                                  _showTranslatePreview(context, item),
                             ),
                           ),
                         );

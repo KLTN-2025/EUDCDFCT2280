@@ -649,7 +649,7 @@ def get_translator(src_lang="en", tgt_lang="vi"):
 async def translate_doc(
     file: UploadFile = File(...),
     target_lang: str = Form(...),
-    user_id: str = Form("guest_user")  # 👈 Thêm dòng này
+    user_id: str = Form(...)  # 👈 bắt buộc phải có user_id
 ):
     try:
         import io, uuid
@@ -720,18 +720,18 @@ async def translate_doc(
 
             # 🔍 Phát hiện ngôn ngữ tự động
             try:
-                detected = detect(text)
+                detected_lang = detect(text)
             except:
-                detected = "unknown"
+                detected_lang = "unknown"
 
-            user_id = user_id.strip() or "guest_user"
+            user_id = user_id.strip()
             user_ref = db.collection("users").document(user_id)
             history_ref = user_ref.collection("translate_history")
 
             history_ref.add({
                 "original_filename": file.filename,
                 # "source_lang": detected if 'detected' in locals() else "auto",
-                "source_lang": detected,
+                "source_lang": detected_lang,
                 "target_lang": target_lang,
                 "result_url": result_url,
                 "timestamp": firestore.SERVER_TIMESTAMP,
@@ -905,7 +905,7 @@ async def get_translate_history(user_id: str):
                 "original_filename": data.get("original_filename", "Không có tên"),
                 "source_lang": data.get("source_lang", "auto"),
                 "target_lang": data.get("target_lang", "unknown"),
-                "result_url": data.get("result_url"),
+                "result_url": data.get("result_url", None),
                 "timestamp": ts.isoformat() if ts else None,
             })
 
