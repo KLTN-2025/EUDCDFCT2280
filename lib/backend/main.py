@@ -713,7 +713,7 @@ async def translate_doc(
 
         # --- Upload lên S3 ---
         s3_key = f"converted_language/{uuid.uuid4()}.docx"
-        s3.upload_file(output_path, BUCKET_NAME, s3_key)
+        s3.upload_file(output_path, BUCKET_NAME, s3_key, ExtraArgs={"ACL": "public-read"})
         result_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{s3_key}"
 
         # =======================================================
@@ -731,7 +731,7 @@ async def translate_doc(
                 pages[0].save(thumb_path, "JPEG")
                 # Upload thumbnail lên S3
                 thumb_key = f"thumbnails/{uuid.uuid4()}.jpg"
-                s3.upload_file(thumb_path, BUCKET_NAME, thumb_key)
+                s3.upload_file(thumb_path, BUCKET_NAME, thumb_key, ExtraArgs={"ACL": "public-read"})
                 thumbnail_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{thumb_key}"
 
             # Nếu file đầu vào là DOCX hoặc TXT → tạo ảnh text preview
@@ -946,6 +946,7 @@ async def get_translate_history(user_id: str):
                 "source_lang": data.get("source_lang", "auto"),
                 "target_lang": data.get("target_lang", "unknown"),
                 "result_url": data.get("result_url", None),
+                "thumbnail_url": data.get("thumbnail_url", None),  # ✅ thêm dòng này
                 "timestamp": ts.isoformat() if ts else None,
             })
 

@@ -81,7 +81,7 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
           .add(await http.MultipartFile.fromPath('file', file.path));
 
       // ✅ Thêm dòng này ngay sau khi tạo request
-      translateReq.fields['user_id'] = userId;
+      // translateReq.fields['user_id'] = userId;
 
       String targetLang = _selectedLanguage.toLowerCase();
       if (targetLang.contains('simplified')) {

@@ -19,7 +19,7 @@ class TranslateHistoryScreen extends StatefulWidget {
 
   @override
   State<TranslateHistoryScreen> createState() => _TranslateHistoryScreenState();
-} 
+}
 
 class _TranslateHistoryScreenState extends State<TranslateHistoryScreen> {
   List<dynamic> _historyList = [];
@@ -356,8 +356,25 @@ class _TranslateHistoryScreenState extends State<TranslateHistoryScreen> {
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                           child: ListTile(
-                            leading: const Icon(Icons.description_rounded,
-                                color: Colors.blue, size: 45),
+                            // leading: const Icon(Icons.description_rounded,
+                            //     color: Colors.blue, size: 45),
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: item['thumbnail_url'] != null
+                                  ? Image.network(
+                                      item['thumbnail_url'],
+                                      width: 55,
+                                      height: 55,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              const Icon(Icons.broken_image,
+                                                  size: 45, color: Colors.grey),
+                                    )
+                                  : const Icon(Icons.description_rounded,
+                                      color: Colors.blue, size: 45),
+                            ),
+
                             title: Text(
                               "Dịch: ${source.toUpperCase()} → ${target.toUpperCase()}",
                               style:
