@@ -382,8 +382,17 @@ class _FileConverterImageScreenState extends State<FileConverterImageScreen> {
                     child: Text(v),
                   );
                 }).toList(),
-                onChanged: (val) => setState(() => _selectedImageType = val!),
+                // Khi đang xử lý (_isLoading = true) thì disable Dropdown
+                onChanged: _isLoading
+                    ? null
+                    : (val) => setState(() => _selectedImageType = val!),
               ),
+              if (_isLoading) ...[
+                const SizedBox(height: 10),
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                ),
+              ],
               const SizedBox(height: 30),
               Expanded(
                 child: Container(
