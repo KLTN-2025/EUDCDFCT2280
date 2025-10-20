@@ -79,7 +79,10 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
       );
       translateReq.files
           .add(await http.MultipartFile.fromPath('file', file.path));
-      // translateReq.fields['target_lang'] = _selectedLanguage.toLowerCase();
+
+      // ✅ Thêm dòng này ngay sau khi tạo request
+      translateReq.fields['user_id'] = userId;
+
       String targetLang = _selectedLanguage.toLowerCase();
       if (targetLang.contains('simplified')) {
         targetLang = 'chinese'; // zh-CN
@@ -88,6 +91,7 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
       }
 
       translateReq.fields['target_lang'] = targetLang;
+      translateReq.fields['user_id'] = userId; // ✅ thêm dòng này
 
       var transResp = await translateReq.send();
       var transBody = await transResp.stream.bytesToString();

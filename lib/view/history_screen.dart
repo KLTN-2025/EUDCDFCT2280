@@ -464,7 +464,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 flags: <int>[Flag.FLAG_ACTIVITY_NEW_TASK],
                               );
                               await intent.launch();
-                            },
+                            }, 
                             icon: const Icon(Icons.photo_library_rounded),
                             label: const Text("📸 Mở thư viện"),
                             style: ElevatedButton.styleFrom(

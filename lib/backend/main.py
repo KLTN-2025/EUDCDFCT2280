@@ -38,6 +38,7 @@ import tempfile, boto3, os
 from PyPDF2 import PdfReader
 import io, boto3, uuid
 
+
 # 🟢 Cấu hình log chi tiết
 logging.basicConfig(
     level=logging.DEBUG,  # Hiển thị toàn bộ log chi tiết
@@ -652,10 +653,12 @@ async def translate_doc(
     user_id: str = Form(...)  # 👈 bắt buộc phải có user_id
 ):
     try:
-        import io, uuid
+        import io, uuid, os
         from PyPDF2 import PdfReader
         from docx import Document
         from deep_translator import GoogleTranslator
+        from PIL import Image, ImageDraw
+        from pdf2image import convert_from_path
 
         ext = file.filename.split('.')[-1].lower()
         content = file.file.read()
@@ -713,9 +716,45 @@ async def translate_doc(
         s3.upload_file(output_path, BUCKET_NAME, s3_key)
         result_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{s3_key}"
 
+        # =======================================================
+        # ✅ TẠO THUMBNAIL (ảnh preview)
+        # =======================================================
+        thumbnail_url = None
+        try:
+            # Nếu file đầu vào là PDF → render trang đầu làm thumbnail
+            if ext == "pdf":
+                temp_pdf_path = f"/tmp/{uuid.uuid4()}.pdf"
+                with open(temp_pdf_path, "wb") as f:
+                    f.write(content)
+                pages = convert_from_path(temp_pdf_path, dpi=100, first_page=1, last_page=1)
+                thumb_path = temp_pdf_path.replace(".pdf", "_thumb.jpg")
+                pages[0].save(thumb_path, "JPEG")
+                # Upload thumbnail lên S3
+                thumb_key = f"thumbnails/{uuid.uuid4()}.jpg"
+                s3.upload_file(thumb_path, BUCKET_NAME, thumb_key)
+                thumbnail_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{thumb_key}"
+
+            # Nếu file đầu vào là DOCX hoặc TXT → tạo ảnh text preview
+            else:
+                thumb_path = f"/tmp/{uuid.uuid4()}.jpg"
+                img = Image.new('RGB', (600, 400), color=(245, 245, 245))
+                d = ImageDraw.Draw(img)
+                preview_text = translated_text[:200] + "..." if len(translated_text) > 200 else translated_text
+                d.text((20, 20), preview_text, fill=(0, 0, 0))
+                img.save(thumb_path)
+                thumb_key = f"thumbnails/{uuid.uuid4()}.jpg"
+                s3.upload_file(thumb_path, BUCKET_NAME, thumb_key)
+                thumbnail_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{thumb_key}"
+
+            print(f"✅ Thumbnail URL: {thumbnail_url}")
+        except Exception as thumb_err:
+            print(f"⚠️ Không thể tạo thumbnail: {thumb_err}")
+        # =======================================================
+        
         # --- Lưu lịch sử vào Firestore ---
         try:
             from google.cloud import firestore
+            from langdetect import detect
             db = firestore.Client()
 
             # 🔍 Phát hiện ngôn ngữ tự động
@@ -730,10 +769,10 @@ async def translate_doc(
 
             history_ref.add({
                 "original_filename": file.filename,
-                # "source_lang": detected if 'detected' in locals() else "auto",
                 "source_lang": detected_lang,
                 "target_lang": target_lang,
                 "result_url": result_url,
+                "thumbnail_url": thumbnail_url,  # ✅ Thêm vào đây
                 "timestamp": firestore.SERVER_TIMESTAMP,
             })
         except Exception as log_err:
@@ -745,7 +784,8 @@ async def translate_doc(
             "status": "success",
             "original_preview": text[:1000],
             "translated_preview": translated_text[:1000],
-            "result_url": result_url
+            "result_url": result_url,
+            "thumbnail_url": thumbnail_url  # ✅ Trả về luôn
         }
 
     except Exception as e:
@@ -921,7 +961,6 @@ async def get_translate_history(user_id: str):
             status_code=500,
             content={"status": "error", "message": str(e)}
         )
-
 
 # ===========================================================
 # 🔹 Kiểm tra server
