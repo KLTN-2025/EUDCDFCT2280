@@ -713,7 +713,7 @@ async def translate_doc(
 
         # --- Upload lên S3 ---
         s3_key = f"converted_language/{uuid.uuid4()}.docx"
-        s3.upload_file(output_path, BUCKET_NAME, s3_key, ExtraArgs={"ACL": "public-read"})
+        s3.upload_file(output_path, BUCKET_NAME, s3_key)
         result_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{s3_key}"
 
         # =======================================================
@@ -731,7 +731,7 @@ async def translate_doc(
                 pages[0].save(thumb_path, "JPEG")
                 # Upload thumbnail lên S3
                 thumb_key = f"thumbnails/{uuid.uuid4()}.jpg"
-                s3.upload_file(thumb_path, BUCKET_NAME, thumb_key, ExtraArgs={"ACL": "public-read"})
+                s3.upload_file(thumb_path, BUCKET_NAME, thumb_key)
                 thumbnail_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{thumb_key}"
 
             # Nếu file đầu vào là DOCX hoặc TXT → tạo ảnh text preview

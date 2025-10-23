@@ -23,6 +23,7 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
   String _selectedLanguage = 'Korean';
   String _outputStatusText = 'Nội dung file đã chuyển đổi nằm ở đây';
   String? _downloadUrl;
+  String? _thumbnailUrl;
   bool _isLoading = false;
 
   // 🔗 Backend URL của bạn (chú ý đổi thành IP thực tế)
@@ -96,30 +97,66 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
       var transResp = await translateReq.send();
       var transBody = await transResp.stream.bytesToString();
 
+      // if (transResp.statusCode == 200) {
+      //   var jsonResponse = json.decode(transBody);
+
+      //   _downloadUrl = jsonResponse['download_url'] ??
+      //       jsonResponse['result_url'] ??
+      //       jsonResponse['resultUrl'] ??
+      //       jsonResponse['url'];
+
+      //   setState(() {}); // 👈 đảm bảo Flutter rebuild để nút tải sáng ngay
+
+      //   // 🔹 Thêm đoạn kiểm tra này
+      //   if (jsonResponse['status'] == 'success' && _downloadUrl != null) {
+      //     setState(() {
+      //       _outputStatusText =
+      //           "✅ Dịch thành công! (${detectedLang.toUpperCase()} → ${_selectedLanguage.toUpperCase()})";
+      //     });
+      //   } else {
+      //     setState(() {
+      //       _outputStatusText = "❌ Lỗi khi dịch file!";
+      //     });
+      //   }
+
+      //   // ignore: avoid_print
+      //   print("✅ Đã nhận URL tải về: $_downloadUrl");
+      // } else {
+      //   setState(() {
+      //     _outputStatusText =
+      //         "❌ Lỗi khi dịch (${transResp.statusCode})\nTừ ${detectedLang.toUpperCase()} → ${_selectedLanguage.toUpperCase()}";
+      //   });
+      // }
       if (transResp.statusCode == 200) {
-        var jsonResponse = json.decode(transBody);
+        final jsonResponse = json.decode(transBody);
 
-        _downloadUrl = jsonResponse['download_url'] ??
-            jsonResponse['result_url'] ??
-            jsonResponse['resultUrl'] ??
-            jsonResponse['url'];
+        // ignore: avoid_print
+        print("📥 Response từ backend: $jsonResponse");
 
-        setState(() {}); // 👈 đảm bảo Flutter rebuild để nút tải sáng ngay
+        // ✅ Lấy URL kết quả đúng key backend
+        _downloadUrl = jsonResponse['result_url'];
+        final String? thumbnailUrl = jsonResponse['thumbnail_url'];
 
-        // 🔹 Thêm đoạn kiểm tra này
+        // Cập nhật UI
         if (jsonResponse['status'] == 'success' && _downloadUrl != null) {
           setState(() {
             _outputStatusText =
                 "✅ Dịch thành công! (${detectedLang.toUpperCase()} → ${_selectedLanguage.toUpperCase()})";
+            // 👇 Lưu thumbnail URL để hiển thị trong giao diện
+            _thumbnailUrl = thumbnailUrl;
           });
         } else {
           setState(() {
-            _outputStatusText = "❌ Lỗi khi dịch file!";
+            _outputStatusText =
+                "❌ Lỗi khi dịch file!\nChi tiết: ${jsonResponse['error'] ?? 'Không có URL kết quả.'}";
           });
         }
-
         // ignore: avoid_print
-        print("✅ Đã nhận URL tải về: $_downloadUrl");
+        print("🖼️ Thumbnail: $thumbnailUrl");
+
+        setState(() {}); // đảm bảo rebuild để nút tải sáng
+        // ignore: avoid_print
+        print("✅ File kết quả: $_downloadUrl");
       } else {
         setState(() {
           _outputStatusText =
@@ -385,6 +422,24 @@ class _LanguageConverterScreenState extends State<LanguageConverterScreen> {
                 ),
               ),
               const SizedBox(height: 40),
+              // 🖼️ Hiển thị thumbnail preview sau khi dịch
+              if (_thumbnailUrl != null) ...[
+                const SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    _thumbnailUrl!,
+                    height: 180,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stack) => const Icon(
+                      Icons.image_not_supported,
+                      size: 50,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+              ],
+
               Column(
                 children: [
                   InkWell(
