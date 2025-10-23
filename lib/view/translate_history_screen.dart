@@ -356,25 +356,73 @@ class _TranslateHistoryScreenState extends State<TranslateHistoryScreen> {
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                           child: ListTile(
-                            // leading: const Icon(Icons.description_rounded,
-                            //     color: Colors.blue, size: 45),
                             leading: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: item['thumbnail_url'] != null
-                                  ? Image.network(
-                                      item['thumbnail_url'],
-                                      width: 55,
-                                      height: 55,
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              const Icon(Icons.broken_image,
-                                                  size: 45, color: Colors.grey),
+                                  ? GestureDetector(
+                                      onTap: () {
+                                        // 👉 Khi bấm vào ảnh, mở xem ảnh lớn
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => Scaffold(
+                                              backgroundColor: Colors.black,
+                                              appBar: AppBar(
+                                                backgroundColor: Colors.black,
+                                                iconTheme: const IconThemeData(
+                                                    color: Colors.white),
+                                              ),
+                                              body: Center(
+                                                child: InteractiveViewer(
+                                                  panEnabled: true,
+                                                  minScale: 0.5,
+                                                  maxScale: 4,
+                                                  child: Image.network(
+                                                    item['thumbnail_url'],
+                                                    fit: BoxFit.contain,
+                                                    loadingBuilder: (context,
+                                                        child,
+                                                        loadingProgress) {
+                                                      if (loadingProgress ==
+                                                          // ignore: curly_braces_in_flow_control_structures
+                                                          null) return child;
+                                                      return const Center(
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                                color: Colors
+                                                                    .white),
+                                                      );
+                                                    },
+                                                    errorBuilder: (context,
+                                                            error,
+                                                            stackTrace) =>
+                                                        const Icon(
+                                                            Icons.broken_image,
+                                                            size: 80,
+                                                            color:
+                                                                Colors.white),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      child: Image.network(
+                                        item['thumbnail_url'],
+                                        width: 55,
+                                        height: 55,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) =>
+                                                const Icon(Icons.broken_image,
+                                                    size: 45,
+                                                    color: Colors.grey),
+                                      ),
                                     )
                                   : const Icon(Icons.description_rounded,
                                       color: Colors.blue, size: 45),
                             ),
-
                             title: Text(
                               "Dịch: ${source.toUpperCase()} → ${target.toUpperCase()}",
                               style:

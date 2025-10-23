@@ -749,6 +749,7 @@ async def translate_doc(
             print(f"✅ Thumbnail URL: {thumbnail_url}")
         except Exception as thumb_err:
             print(f"⚠️ Không thể tạo thumbnail: {thumb_err}")
+            import traceback; traceback.print_exc()
         # =======================================================
         
         # --- Lưu lịch sử vào Firestore ---
