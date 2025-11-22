@@ -38,7 +38,7 @@ from deep_translator import GoogleTranslator
 import mimetypes
 from transformers import pipeline
 import tempfile, boto3, os
-import tempfile, os, requests, logging, shutil, uuid
+import tempfile, os, requests, logging, shutil, uuid 
 from PyPDF2 import PdfReader
 import io, boto3, uuid
 from docx.oxml.ns import qn
